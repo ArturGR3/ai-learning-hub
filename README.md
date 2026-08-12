@@ -1,29 +1,54 @@
 # Learning Hub
 
-A personal wiki of self-contained HTML pages, one per topic you have learned.
+Keep the explanations that made something click.
 
-<p align="center"><img src="docs/index.png" alt="The Learning Hub index" width="760"></p>
+You are working with an AI and something comes up that you do not really
+understand. You ask. It explains, it clicks, you move on. Then the chat scrolls
+away, and a month later you are asking the same question again.
 
-Each page is a **blueprint**: one topic, taught intuition first. Plain English, then
-examples, then the precise terms, with a diagram wherever a picture says it faster.
+This is where that explanation goes instead: one page per topic, written for
+you, that you keep and keep editing.
+
+## The loop
+
+```
+   a conversation where a new concept comes up
+                      |
+                      |   /learn
+                      v
+   +--------------------------------------+
+   |  a blueprint: one topic, one page    |
+   |  intuition first, then the details   |
+   +--------------------------------------+
+                      |
+                      v
+                  your hub
+                      |
+      re-read it  ·  edit it  ·  add to it  ·  get quizzed on it
+```
+
+Nothing here is finished. A blueprint is a page you go back to: fix the part
+that was wrong, add the example you only understood later, link it to the topic
+you learned this week.
+
+## What a blueprint looks like
 
 <p align="center"><img src="docs/blueprint.png" alt="A blueprint" width="760"></p>
 
-## The links are the structure
+Plain English first, then the examples, then the precise terms, with a diagram
+wherever a picture says it faster. It is one self-contained HTML file, so it
+opens anywhere, offline, years from now.
 
-A blueprint links to the ones it builds on, and those link back. That graph is the
-only organization - no folders, no categories, nothing to file things under.
-Clusters form because you kept linking, and the shape of what you know appears.
+## It grows into something
 
-```
-  probability --> sampling --> regression --> causal inference
-                     |                               ^
-                     +--------> bootstrap -----------+
-```
+<p align="center"><img src="docs/index.png" alt="The Learning Hub index" width="760"></p>
 
-The idea is borrowed from Karpathy's **LLM wiki**: do the reasoning once, when you
-write the page, instead of redoing it in every chat. A chat answers and disappears;
-a blueprint stays, and the next one connects to it.
+Blueprints link to the ones they build on. That graph is the only organization -
+no folders, no categories, nothing to file things under. Clusters form because
+you kept linking, and the shape of what you know appears on its own.
+
+This is the idea behind Karpathy's **LLM wiki**: do the reasoning once, when you
+write the page, instead of redoing it in every chat.
 
 ## Start
 
@@ -33,11 +58,10 @@ cd my-learning-hub
 open index.html
 ```
 
-Every asset a page needs ships inside the repo, so the hub opens anywhere, offline.
+`topics/example-blueprint.html` is a real lesson and an example of every
+convention.
 
-`topics/example-blueprint.html` is a real lesson and an example of every convention.
-
-## Write one
+## Write your first one
 
 Install the `/learn` skill once:
 
@@ -45,9 +69,9 @@ Install the `/learn` skill once:
 ./scripts/install-skill.sh
 ```
 
-It symlinks `skills/learn/` into `~/.claude/skills/` and changes nothing else. Then
-type `/learn` in any Claude Code session: it teaches you the topic, turns it into a
-blueprint, files it here, and offers to quiz you afterwards.
+It symlinks `skills/learn/` into `~/.claude/skills/` and changes nothing else.
+Then type `/learn` in any Claude Code session, in any project. It teaches you
+the topic, turns it into a blueprint, files it here, and offers to quiz you.
 
 Writing the HTML yourself works the same way. File it with:
 
@@ -55,13 +79,14 @@ Writing the HTML yourself works the same way. File it with:
 ./scripts/file-blueprint.sh topics/<name>.html "topic - one line"
 ```
 
-It validates the page, rebuilds `index.html`, appends `log.md`, commits, and pushes
-if you have a remote.
+It validates the page, rebuilds `index.html`, appends `log.md`, commits, and
+pushes if you have a remote.
 
 ## Make it yours
 
-Rewrite the top section of `AGENTS.md`: who you are and how you learn. That is what
-an agent reads before teaching you anything. Everything below it works for anyone.
+Rewrite the top section of `AGENTS.md`: who you are and how you learn. That is
+what an agent reads before teaching you anything. Everything below it works for
+anyone.
 
 Then delete the example and write your first blueprint.
 
