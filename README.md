@@ -22,7 +22,10 @@ you learned this week.
 
 ## What a blueprint looks like
 
-<p align="center"><img src="docs/blueprint.png" alt="A blueprint" width="760"></p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/blueprint-dark.png">
+  <img src="docs/blueprint.png" alt="A blueprint: a claim as its title, a color legend, a table of contents, and a section that opens in plain English and ends with a Remember box">
+</picture>
 
 Plain English first, then the examples, then the precise terms, with a diagram
 wherever a picture says it faster. It is one self-contained HTML file, so it
@@ -30,7 +33,10 @@ opens anywhere, offline, years from now.
 
 ## It grows into something
 
-<p align="center"><img src="docs/index.png" alt="The index, listing blueprints with their tags and which are due for a quiz" width="760"></p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/index-dark.png">
+  <img src="docs/index.png" alt="The index, listing blueprints with their tags and which are due for a quiz">
+</picture>
 
 <p align="center"><sub>The index after a few months. It is generated from your
 blueprints, and it ships with one.</sub></p>

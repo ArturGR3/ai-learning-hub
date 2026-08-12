@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>screenshot frame</title>
+<!--
+  Frames a hub page in a browser window for the README screenshots.
+
+    ?src=../index.html&h=1180        light
+    ?src=../index.html&h=1180&dark   dark surround
+
+  The framed page stays light in both, because the hub is light. Only the
+  surround follows the reader's theme, so the shot sits on the README instead
+  of punching a white hole through it.
+
+  The iframe is exactly as wide as .page, so there is no dead margin, and the
+  whole frame is zoomed 1.5x so the capture is crisp at 1200px.
+-->
+<style>
+  :root { --bg: #f2f1ee; --chrome: #e4e2dd; --edge: #d0cec9; --dot: #c3c1bb; --pill: #faf9f7; --pilltx: #8b8880; }
+  html.dark { --bg: #0d1117; --chrome: #21262d; --edge: #30363d; --dot: #484f58; --pill: #161b22; --pilltx: #7d8590; }
+  body { margin: 0; background: var(--bg); }
+  #outer { display: inline-block; padding: 26px; background: var(--bg); zoom: 1.5; }
+  .win { width: 760px; border: 1px solid var(--edge); border-radius: 9px; overflow: hidden;
+         box-shadow: 0 6px 22px rgba(0,0,0,0.13); background: #fff; }
+  .bar { height: 27px; background: var(--chrome); display: flex; align-items: center; padding: 0 10px; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); }
+  .pill { flex: 1; margin-left: 8px; height: 16px; border-radius: 8px; background: var(--pill);
+          font: 9px/16px ui-monospace, monospace; color: var(--pilltx); text-align: center; }
+  iframe { display: block; width: 760px; border: 0; }
+</style>
+</head>
+<body>
+<div id="outer">
+  <div class="win">
+    <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="pill" id="url"></span></div>
+    <iframe id="f" scrolling="no"></iframe>
+  </div>
+</div>
+<script>
+  var q = new URLSearchParams(location.search);
+  if (q.has('dark')) document.documentElement.classList.add('dark');
+  var src = q.get('src') || '../index.html';
+  document.getElementById('f').src = src;
+  document.getElementById('f').style.height = (q.get('h') || 1180) + 'px';
+  document.getElementById('url').textContent = q.get('label') || src.replace('../', 'learning-hub/');
+</script>
+</body>
+</html>
