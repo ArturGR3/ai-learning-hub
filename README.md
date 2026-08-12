@@ -1,6 +1,7 @@
 # Learning Hub
 
-Keep the explanations that made something click.
+A personal wiki of what you have learned, built out of your conversations with
+an AI.
 
 You are working with an AI and something comes up that you do not really
 understand. You ask. It explains, it clicks, you move on. Then the chat scrolls
