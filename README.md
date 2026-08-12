@@ -111,4 +111,7 @@ need either.
 
 ## License
 
-Do what you like with it. The blueprints you write are yours.
+MIT - see `LICENSE`. Use it, fork it, change it, no obligations.
+
+The blueprints you write are yours and are not covered by it. This license is
+about the machinery you cloned, not the understanding you build with it.
