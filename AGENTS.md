@@ -293,6 +293,31 @@ the user the date to set.
 anchor back to intuition and diagrams before precise terms. It's a learning tool,
 not an exam.
 
+## How to lint
+
+`validate.py` checks each blueprint in isolation, so it catches broken metas,
+network assets, and dangling links. It cannot see the *graph* decaying. Lint is
+the judgement pass over the whole hub - run it when asked, or when the hub has
+grown by a few blueprints since the last one.
+
+Report everything found as a list **before fixing anything**, so the user
+prioritises. Four checks:
+
+1. **Orphans.** A blueprint nothing else links to. Either it is genuinely new and
+   wants a link from its nearest neighbour, or it got disconnected by an edit.
+2. **One-way links.** A lists B in `cross-refs` but B does not list A. The graph
+   is the structure only if it holds in both directions - fix by editing B.
+3. **Concepts with no page.** A term carrying real weight in someone's prose,
+   with no blueprint of its own. Flag; do not write it. Most such terms should
+   stay a sentence, and only the user knows which one deserves the full
+   intuition-up treatment.
+4. **Contradictions.** The same term defined two ways, or two "Remember"
+   callouts that cannot both be true. Cite both pages and let the user resolve
+   it - the pages may simply be describing different cases.
+
+Afterwards append `log.md` with `lint | N found, M fixed`, and record what was
+deliberately left alone so the next pass can see whether it compounded.
+
 ## Filing
 
 1. Save to `topics/<slug>.html`.
