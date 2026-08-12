@@ -72,7 +72,11 @@ fi
 
 if [ "$ASSUME_YES" = false ]; then
   printf "  Install? [y/N] "
-  read -r REPLY </dev/tty
+  # /dev/tty first, so the prompt still works when the script is piped in.
+  # Fall back to stdin, and treat "no input at all" as no.
+  if ! { read -r REPLY </dev/tty; } 2>/dev/null; then
+    read -r REPLY || REPLY=""
+  fi
   case "$REPLY" in
     y|Y|yes|YES) ;;
     *) echo "  Cancelled. Nothing was changed."; exit 0 ;;

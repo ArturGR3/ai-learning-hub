@@ -70,7 +70,7 @@ git add .gitignore 2>/dev/null || true
 
 # 5. Commit — "Add" for new blueprints, "Refine" for edits to existing ones
 BLUEPRINT_NAME=$(basename "$BLUEPRINT" .html)
-git commit -m "${VERB} ${BLUEPRINT_NAME}.html — ${LOG_MSG}"
+git commit -m "${VERB} ${BLUEPRINT_NAME}.html - ${LOG_MSG}"
 
 # 6. Push — a hub with no remote is still a complete hub, so a missing or
 # unreachable remote is a note, not a failure. The commit is the durable part.
