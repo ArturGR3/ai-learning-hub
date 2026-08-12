@@ -17,9 +17,8 @@ written for you, that you keep and keep editing.
   <img src="docs/loop.png" alt="A conversation becomes a blueprint, the blueprint joins your hub, and you come back to re-read it, edit it and be quizzed on it">
 </picture>
 
-A blueprint keeps changing. You go back to it and fix the part that was wrong,
-add the example you only understood later, link it to the topic you picked up
-this week.
+A blueprint keeps changing. Come back and correct what you got wrong, add a
+better example when you find one, and link it to whatever you learn next.
 
 ## What a blueprint looks like
 
