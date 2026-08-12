@@ -11,7 +11,10 @@ you, that you keep and keep editing.
 
 ## The loop
 
-<p align="center"><img src="docs/loop.png" alt="A conversation becomes a blueprint, the blueprint joins your hub, and you come back to re-read, edit and be quizzed on it" width="820"></p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/loop-dark.png">
+  <img src="docs/loop.png" alt="A conversation becomes a blueprint, the blueprint joins your hub, and you come back to re-read it, edit it and be quizzed on it">
+</picture>
 
 Nothing here is finished. A blueprint is a page you go back to: fix the part
 that was wrong, add the example you only understood later, link it to the topic

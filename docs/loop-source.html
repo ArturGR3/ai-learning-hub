@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>loop diagram source</title>
+<link rel="stylesheet" href="../assets/blueprint.css">
+<!--
+  Source for docs/loop.png and docs/loop-dark.png.
+
+  To regenerate: open this file, screenshot at 1200px wide, crop to the wrapper.
+  Add ?dark to the URL for the dark variant. Keep both in step - the README
+  serves them through a <picture> element and swaps on the reader's theme.
+
+  Type is sized against a 1000-unit viewBox rendered at 1200px and displayed at
+  820px in the README. Anything below ~17 units becomes unreadable there.
+-->
+<style>
+  :root {
+    --bg: #fdfdfb; --fg: #1a1a1a; --mut: #555; --line: #d0d0d0;
+    --acc: #c8102e; --grn: #2d7a3f; --card: #ffffff; --fill: #e8e6e2;
+    --grnbg: rgba(45,122,63,0.06);
+  }
+  html.dark {
+    --bg: #0d1117; --fg: #e6edf3; --mut: #9198a1; --line: #30363d;
+    --acc: #ff7b72; --grn: #3fb950; --card: #161b22; --fill: #21262d;
+    --grnbg: rgba(63,185,80,0.08);
+  }
+  body { background: var(--bg); margin: 0; }
+  #wrap { width: 1200px; background: var(--bg); padding: 30px 0 24px; }
+  svg { display: block; width: 1200px; }
+  .ttl  { font-family: Georgia, serif; font-size: 25px; font-weight: 700; fill: var(--fg); }
+  .sub  { font-family: 'Source Serif Pro', Georgia, serif; font-size: 18px; fill: var(--mut); }
+  .mono { font-family: 'JetBrains Mono', monospace; font-size: 19px; fill: var(--acc); font-weight: 500; }
+  .step { font-family: 'JetBrains Mono', monospace; font-size: 15px; letter-spacing: .2em; fill: var(--mut); }
+  .back { font-family: 'Source Serif Pro', Georgia, serif; font-size: 19px; fill: var(--mut); font-style: italic; }
+</style>
+</head>
+<body>
+<div id="wrap">
+<svg viewBox="0 0 1000 470">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L7.5,3.5 L0,7 Z" fill="var(--mut)"/>
+    </marker>
+    <marker id="arA" markerWidth="10" markerHeight="10" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L7.5,3.5 L0,7 Z" fill="var(--acc)"/>
+    </marker>
+  </defs>
+
+  <!-- 01 conversation -->
+  <text class="step" x="24" y="30">01</text>
+  <rect x="24" y="46" width="252" height="120" rx="12" fill="var(--card)" stroke="var(--line)" stroke-width="2"/>
+  <rect x="48" y="74" width="132" height="17" rx="8.5" fill="var(--fill)"/>
+  <rect x="48" y="100" width="186" height="17" rx="8.5" fill="var(--fill)"/>
+  <rect x="96" y="126" width="156" height="17" rx="8.5" fill="var(--acc)" opacity="0.20"/>
+  <text class="ttl" x="24" y="204">A conversation with an AI</text>
+  <text class="sub" x="24" y="232">Something new comes up.</text>
+  <text class="sub" x="24" y="256">It explains. It clicks.</text>
+
+  <path d="M292,106 L370,106" stroke="var(--acc)" stroke-width="2.4" fill="none" marker-end="url(#arA)"/>
+  <text class="mono" x="331" y="90" text-anchor="middle">/learn</text>
+
+  <!-- 02 blueprint -->
+  <text class="step" x="392" y="30">02</text>
+  <rect x="392" y="46" width="216" height="120" rx="12" fill="var(--card)" stroke="var(--fg)" stroke-width="2.6"/>
+  <rect x="392" y="46" width="216" height="7" rx="3.5" fill="var(--acc)"/>
+  <rect x="416" y="76" width="112" height="13" rx="6.5" fill="var(--fg)"/>
+  <rect x="416" y="99" width="168" height="10" rx="5" fill="var(--fill)"/>
+  <rect x="416" y="117" width="146" height="10" rx="5" fill="var(--fill)"/>
+  <rect x="416" y="136" width="62" height="20" rx="4" fill="none" stroke="var(--acc)" stroke-width="1.6"/>
+  <rect x="490" y="136" width="94" height="20" rx="4" fill="var(--fill)"/>
+  <text class="ttl" x="392" y="204">A blueprint</text>
+  <text class="sub" x="392" y="232">One topic, one page.</text>
+  <text class="sub" x="392" y="256">Intuition first, then detail.</text>
+
+  <path d="M624,106 L702,106" stroke="var(--mut)" stroke-width="2.2" fill="none" marker-end="url(#ar)"/>
+
+  <!-- 03 hub -->
+  <text class="step" x="724" y="30">03</text>
+  <rect x="724" y="46" width="252" height="120" rx="12" fill="var(--grnbg)" stroke="var(--grn)" stroke-width="2.2"/>
+  <g stroke="var(--grn)" stroke-width="2" opacity="0.6" fill="none">
+    <path d="M770,82 L836,72"/><path d="M836,72 L916,90"/><path d="M770,82 L800,132"/>
+    <path d="M800,132 L878,138"/><path d="M878,138 L916,90"/><path d="M878,138 L942,124"/>
+  </g>
+  <g fill="var(--grn)">
+    <circle cx="770" cy="82" r="7"/><circle cx="836" cy="72" r="7"/><circle cx="916" cy="90" r="7"/>
+    <circle cx="800" cy="132" r="7"/><circle cx="878" cy="138" r="7"/><circle cx="942" cy="124" r="7"/>
+  </g>
+  <text class="ttl" x="724" y="204">Your hub</text>
+  <text class="sub" x="724" y="232">It links to what you already</text>
+  <text class="sub" x="724" y="256">learned. The graph grows.</text>
+
+  <!-- return loop -->
+  <path d="M950,296 C950,384 860,404 620,404 L380,404 C140,404 66,384 66,300"
+        stroke="var(--mut)" stroke-width="2" fill="none" stroke-dasharray="8 6" marker-end="url(#ar)"/>
+  <rect x="278" y="386" width="452" height="36" fill="var(--bg)"/>
+  <text class="back" x="504" y="411" text-anchor="middle">re-read it &#183; edit it &#183; add to it &#183; get quizzed on it</text>
+</svg>
+</div>
+<script>
+  if (location.search.indexOf('dark') !== -1) document.documentElement.classList.add('dark');
+</script>
+</body>
+</html>
