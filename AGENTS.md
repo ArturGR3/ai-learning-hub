@@ -40,7 +40,8 @@ protect it:
    links `assets/blueprint.css`. Root-absolute paths break over `file://`.
 3. **Generated files are committed.** A fresh clone must work with no tooling.
 
-There is no CI. Nothing rebuilds on push. `README.md` covers the layout;
+There is no CI. Nothing rebuilds on push. This file is the layout reference -
+`README.md` is deliberately kept to what a stranger needs in the first minute.
 `deploy/` covers reading the hub from a phone, which is optional and which most
 owners never need.
 
@@ -317,5 +318,7 @@ cross-references for laptop follow-up.
 ## Keeping the docs honest
 
 When you change how the hub works — the generator, the validator, the filing
-script, the CSS contract, or what `index.html` contains — update `README.md` in
-the same change, along with any blueprint that documents the machinery.
+script, the CSS contract, or what `index.html` contains — update this file in the
+same change, along with any blueprint that documents the machinery. Touch
+`README.md` only when the change alters one of the few things it shows: the two
+commands, the screenshots, or what a fresh clone does.

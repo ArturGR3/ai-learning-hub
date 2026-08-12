@@ -1,30 +1,29 @@
 # Learning Hub
 
-A place to keep what you learn.
+A personal wiki of self-contained HTML pages, one per topic you have learned.
 
-<p align="center">
-  <img src="docs/index.png" alt="The Learning Hub index" width="760">
-</p>
+<p align="center"><img src="docs/index.png" alt="The Learning Hub index" width="760"></p>
 
-Every time you understand something new, you write it down as a **blueprint** -
-one page that teaches that one topic. The intuition first, then the examples,
-then the precise words, with a diagram wherever a picture says it better.
+Each page is a **blueprint**: one topic, taught intuition first. Plain English, then
+examples, then the precise terms, with a diagram wherever a picture says it faster.
 
-<p align="center">
-  <img src="docs/blueprint.png" alt="A blueprint" width="760">
-</p>
+<p align="center"><img src="docs/blueprint.png" alt="A blueprint" width="760"></p>
 
-## The links are the point
+## The links are the structure
 
-A blueprint points at the ones it builds on, and they point back. Those links are
-the only structure - there are no folders to organize and no categories to
-maintain. Related topics end up near each other because you kept linking them,
-and the shape of what you know appears on its own.
+A blueprint links to the ones it builds on, and those link back. That graph is the
+only organization - no folders, no categories, nothing to file things under.
+Clusters form because you kept linking, and the shape of what you know appears.
 
-That is the idea borrowed from the **LLM wiki**: do the thinking once, when you
-write the page, instead of redoing it every time you ask. A chat answers and
-disappears. A blueprint stays, and the next one connects to it. What compounds
-is not the pages - it is the connections between them.
+```
+  probability --> sampling --> regression --> causal inference
+                     |                               ^
+                     +--------> bootstrap -----------+
+```
+
+The idea is borrowed from Karpathy's **LLM wiki**: do the reasoning once, when you
+write the page, instead of redoing it in every chat. A chat answers and disappears;
+a blueprint stays, and the next one connects to it.
 
 ## Start
 
@@ -34,39 +33,39 @@ cd my-learning-hub
 open index.html
 ```
 
-Everything a page needs travels with it, so your hub opens anywhere, offline,
-years from now.
+Every asset a page needs ships inside the repo, so the hub opens anywhere, offline.
 
-`topics/example-blueprint.html` is a real lesson and a working example of every
-convention. Read it before writing your own.
+`topics/example-blueprint.html` is a real lesson and an example of every convention.
 
 ## Write one
 
-Install the skill once:
+Install the `/learn` skill once:
 
 ```bash
 ./scripts/install-skill.sh
 ```
 
-Then type `/learn` in any project. Claude teaches you the topic, turns it into a
-blueprint, and files it here.
+It symlinks `skills/learn/` into `~/.claude/skills/` and changes nothing else. Then
+type `/learn` in any Claude Code session: it teaches you the topic, turns it into a
+blueprint, files it here, and offers to quiz you afterwards.
 
-Prefer to write the HTML yourself? File it with:
+Writing the HTML yourself works the same way. File it with:
 
 ```bash
 ./scripts/file-blueprint.sh topics/<name>.html "topic - one line"
 ```
 
+It validates the page, rebuilds `index.html`, appends `log.md`, commits, and pushes
+if you have a remote.
+
 ## Make it yours
 
-Open `AGENTS.md` and rewrite the top section: who you are and how you learn. That
-is what an agent reads before teaching you anything. Everything below it already
-works for anyone.
+Rewrite the top section of `AGENTS.md`: who you are and how you learn. That is what
+an agent reads before teaching you anything. Everything below it works for anyone.
 
 Then delete the example and write your first blueprint.
 
 ---
 
-Want it on your phone? See `deploy/`. Most people never need it.
-
-MIT licensed. The blueprints you write are yours.
+Reading the hub on your phone is optional and covered in `deploy/`. MIT licensed;
+the blueprints you write are yours.
