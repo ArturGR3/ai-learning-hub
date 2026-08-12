@@ -16,9 +16,9 @@ written for you, that you keep and keep editing.
   <img src="docs/loop.png" alt="A conversation becomes a blueprint, the blueprint joins your hub, and you come back to re-read it, edit it and be quizzed on it">
 </picture>
 
-Nothing here is finished. A blueprint is a page you go back to: fix the part
-that was wrong, add the example you only understood later, link it to the topic
-you learned this week.
+A blueprint keeps changing. You go back to it and fix the part that was wrong,
+add the example you only understood later, link it to the topic you picked up
+this week.
 
 ## What a blueprint looks like
 
@@ -47,9 +47,10 @@ now.
 <p align="center"><sub>The index after a few months. It is generated from your
 blueprints, and it ships with one.</sub></p>
 
-Blueprints link to the ones they build on. That graph is the only organization -
-no folders, no categories, nothing to file things under. Clusters form because
-you kept linking, and the shape of what you know appears on its own.
+Blueprints link to the ones they build on, and those links do the organizing.
+Clusters form where you kept linking, so the shape of what you know grows out of
+what you actually wrote. The index reads it all back: every blueprint, its tags,
+when you last touched it, and which ones are due for a quiz.
 
 This is the idea behind Karpathy's **LLM wiki**: do the reasoning once, when you
 write the page, instead of redoing it in every chat.
@@ -73,9 +74,10 @@ Install the `/learn` skill once:
 ./scripts/install-skill.sh
 ```
 
-It symlinks `skills/learn/` into `~/.claude/skills/` and changes nothing else.
-Then type `/learn` in any Claude Code session, in any project. It teaches you
-the topic, turns it into a blueprint, files it here, and offers to quiz you.
+It creates one symlink, `~/.claude/skills/learn` pointing into this repo, and
+tells you so before it does. Then type `/learn` in any Claude Code session, in
+any project: it teaches you the topic, turns it into a blueprint, files it here,
+and offers to quiz you.
 
 Writing the HTML yourself works the same way. File it with:
 
