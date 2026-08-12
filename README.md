@@ -27,15 +27,13 @@ better example when you find one, and link it to whatever you learn next.
   <img src="docs/blueprint.png" alt="A blueprint: a claim as its title, a color legend, a table of contents, and a section that opens in plain English and ends with a Remember box">
 </picture>
 
-Plain English first, then examples, then the precise terms. Diagrams appear
-where drawing something explains it better than describing it would.
+Plain English first, then examples, then the precise terms. Diagrams when
+something is easier to show than to explain.
 
 A blueprint is as long as its topic deserves. A session on DNS might be four
 sections; one on causal inference might run to fourteen and read like a short
-field guide. What makes it one blueprint is that it covers one thing, end to
-end, rather than being trimmed to a convenient size. It is a single
-self-contained HTML file either way, so it opens anywhere, offline, years from
-now.
+field guide. Either way it is a single self-contained HTML file, so it opens
+anywhere, offline, years from now.
 
 ## It grows into something
 
