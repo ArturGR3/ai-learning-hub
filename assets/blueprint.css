@@ -1,0 +1,348 @@
+/* Fonts ship with the repo — latin subsets, woff2, no network at any point.
+   Display headings are Georgia: a system face on every machine the hub opens on,
+   so nothing to vendor and nothing to load. */
+
+@font-face {
+  font-family: 'Source Serif Pro';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/source-serif-pro-latin-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Serif Pro';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('fonts/source-serif-pro-latin-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Serif Pro';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/source-serif-pro-latin-400italic.woff2') format('woff2');
+}
+@font-face {
+  /* One variable file covers the 400 and 500 the stylesheet asks for. */
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('fonts/jetbrains-mono-latin-var.woff2') format('woff2');
+}
+
+:root {
+  --ink: #1a1a1a;
+  --soft: #555;
+  --rule: #d0d0d0;
+  --accent: #c8102e;
+  --paper: #fdfdfb;
+  --highlight: #fff8b8;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Source Serif Pro', Georgia, serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 56px 96px;
+}
+
+/* ─── Breadcrumb ─── */
+/* Deliberately lowercase and un-tracked: the eyebrow directly below is
+   uppercase mono accent, and two stacked uppercase mono lines read as noise.
+   This is navigation chrome, so it stays subordinate. */
+nav.crumb {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--rule);
+  margin-bottom: 26px;
+}
+nav.crumb a {
+  color: var(--soft);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+nav.crumb a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+nav.crumb span { margin: 0 5px; color: var(--rule); }
+
+/* ─── Header ─── */
+header.title {
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 20px;
+  margin-bottom: 40px;
+}
+header.title .eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+header.title h1 {
+  font-family: Georgia, serif;
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+  margin-bottom: 8px;
+}
+header.title h1 .subtitle {
+  font-weight: 400;
+  color: var(--soft);
+  font-style: italic;
+  display: block;
+  font-size: 20px;
+  margin-top: 4px;
+}
+header.title .meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--soft);
+  margin-top: 14px;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+header.title .meta .tags { color: var(--accent); }
+
+/* Visual grammar legend */
+.legend {
+  margin: 20px 0 0;
+  padding: 12px 16px;
+  background: rgba(0,0,0,0.02);
+  border: 1px solid var(--rule);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+.legend .swatch { display: inline-flex; align-items: center; gap: 7px; }
+.legend .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.legend .dot.dashed { background: transparent; border: 1.4px dashed var(--soft); }
+.legend .swatch b { font-weight: 500; color: var(--ink); }
+.legend .label {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--soft);
+  margin-right: 2px;
+}
+
+/* Table of contents */
+.toc { list-style: none; padding: 0; margin: 30px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 26px; }
+.toc li { border-top: 1px solid var(--rule); }
+.toc a { display: flex; gap: 14px; padding: 13px 4px; text-decoration: none; color: var(--ink); align-items: baseline; }
+.toc a:hover { color: var(--accent); }
+.toc .n { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); min-width: 22px; }
+.toc .ttl { font-family: Georgia, serif; font-size: 17px; line-height: 1.2; }
+
+/* ─── Sections ─── */
+section {
+  margin-bottom: 40px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--rule);
+}
+section:last-of-type { border-bottom: none; margin-bottom: 24px; }
+
+.chno {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+h2 {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  line-height: 1.15;
+}
+p { margin-bottom: 16px; }
+p:last-child { margin-bottom: 0; }
+strong { font-weight: 600; }
+em { font-style: italic; }
+code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  background: rgba(200, 16, 46, 0.06);
+  padding: 1px 4px;
+}
+
+/* Inline cross-reference */
+.xref {
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  text-decoration: none;
+  border-bottom: 1px solid var(--accent);
+}
+
+/* Inline diagram */
+.diagram {
+  margin: 20px 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.diagram svg, .diagram img {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.diagram .caption {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--soft);
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Formula + "reading it" */
+.formula {
+  margin: 20px 0 0;
+  padding: 10px 18px 6px;
+  background: rgba(0,0,0,0.025);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--ink);
+  overflow-x: auto;
+  text-align: center;
+}
+.formula .lab {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--soft);
+  display: block;
+  margin-bottom: 4px;
+  text-align: left;
+}
+.formula .eq {
+  font-family: Georgia, serif;
+  font-size: 18px;
+  font-style: italic;
+  padding: 4px 0 8px;
+}
+.where {
+  margin: 0 0 20px;
+  padding: 10px 18px 12px;
+  background: rgba(0,0,0,0.025);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--ink);
+  border-top: none;
+}
+.where .wlab {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 6px;
+}
+.where ul { list-style: none; margin: 0; padding: 0; }
+.where li {
+  padding: 5px 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--soft);
+  border-top: 1px dotted var(--rule);
+}
+.where li:first-child { border-top: none; }
+.where li b { color: var(--ink); font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+/* Per-section "Remember" */
+.key {
+  margin: 18px 0 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--accent);
+  background: linear-gradient(90deg, rgba(200,16,46,0.05), transparent 70%);
+}
+.key .lab {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 4px;
+}
+.key p { margin: 0; font-size: 15px; }
+
+/* "In one breath" closing */
+.closing {
+  margin-top: 24px;
+  padding-top: 28px;
+  border-top: 2px solid var(--ink);
+  border-bottom: none;
+}
+.closing .chno { color: var(--soft); }
+.breath {
+  font-family: Georgia, serif;
+  font-size: 19px;
+  line-height: 1.45;
+  font-style: italic;
+}
+
+/* Cross-references */
+.cross-refs {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--soft);
+}
+.cross-refs .label {
+  color: var(--accent);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 10px;
+  margin-right: 8px;
+}
+.cross-refs a {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule);
+  margin-right: 14px;
+}
+.cross-refs a:hover { border-bottom-color: var(--ink); }
+
+footer {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--soft);
+  letter-spacing: 0.1em;
+  display: flex;
+  justify-content: space-between;
+}
+footer a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--ink); }
+
+@media (max-width: 640px) {
+  .page { padding: 32px 24px; }
+  header.title h1 { font-size: 28px; }
+  header.title h1 .subtitle { font-size: 18px; }
+  .toc { grid-template-columns: 1fr; }
+  .breath { font-size: 17px; }
+  .formula .eq { font-size: 16px; }
+}

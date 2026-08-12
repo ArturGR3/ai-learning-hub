@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="source-chat" content="shipped with the template - no source chat">
+<meta name="last-quizzed" content="">
+<meta name="prerequisites" content="">
+<meta name="tags" content="statistics, sampling, estimation, example">
+<meta name="created" content="2026-08-12">
+<meta name="last-updated" content="2026-08-12">
+<title>Sampling - intuition blueprint</title>
+<link rel="stylesheet" href="../assets/blueprint.css">
+<link rel="stylesheet" href="../assets/katex/katex.min.css">
+<script defer src="../assets/katex/katex.min.js"></script>
+<script defer src="../assets/katex/auto-render.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: '$$', right: '$$', display: true },
+      { left: '\\(', right: '\\)', display: false }
+    ],
+    throwOnError: false
+  });
+});
+</script>
+<style>
+  /* Page-local colour grammar. The same colour means the same thing in every
+     diagram below - that is the rule, not a suggestion. */
+  :root {
+    --pop: #3A6EA5;   /* the population - everything you did not measure */
+    --smp: #B23A6E;   /* one sample - what you actually measured */
+    --est: #1F7A6D;   /* the estimate, and how it scatters */
+    --bias: #B8720A;  /* bias - error that never shrinks */
+  }
+  .pop-word  { color: var(--pop);  font-weight: 600; }
+  .smp-word  { color: var(--smp);  font-weight: 600; }
+  .est-word  { color: var(--est);  font-weight: 600; }
+  .bias-word { color: var(--bias); font-weight: 600; }
+  .svg-label { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; fill: var(--ink); }
+  .svg-small { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; fill: var(--soft); }
+  table.grid {
+    border-collapse: collapse;
+    margin: 20px 0;
+    width: 100%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  table.grid th, table.grid td {
+    border: 1px solid var(--rule);
+    padding: 8px 12px;
+    text-align: right;
+  }
+  table.grid th {
+    background: rgba(0,0,0,0.03);
+    font-weight: 500;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--soft);
+  }
+  table.grid td.l, table.grid th.l { text-align: left; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <nav class="crumb"><a href="../">Learning Hub</a><span>/</span>example-blueprint</nav>
+
+  <header class="title">
+    <div class="eyebrow">Intuition Blueprint</div>
+    <h1>Why can asking 1,000 people tell you about 300 million?<span class="subtitle">Sampling and the standard error</span></h1>
+    <div class="meta">
+      <span>created: 2026-08-12</span>
+      <span>last-updated: 2026-08-12</span>
+      <span class="tags">statistics · sampling · estimation</span>
+    </div>
+  </header>
+
+  <div class="legend">
+    <span class="label">colour grammar</span>
+    <span class="swatch"><span class="dot" style="background: var(--pop)"></span><b>population</b></span>
+    <span class="swatch"><span class="dot" style="background: var(--smp)"></span><b>sample</b></span>
+    <span class="swatch"><span class="dot" style="background: var(--est)"></span><b>estimate</b></span>
+    <span class="swatch"><span class="dot" style="background: var(--bias)"></span><b>bias</b></span>
+  </div>
+
+  <ul class="toc">
+    <li><a href="#s01"><span class="n">01</span><span class="ttl">The size of the pot does not change the spoonful</span></a></li>
+    <li><a href="#s02"><span class="n">02</span><span class="ttl">Your answer is a random variable, not a number</span></a></li>
+    <li><a href="#s03"><span class="n">03</span><span class="ttl">Four times the work buys half the error</span></a></li>
+    <li><a href="#s04"><span class="n">04</span><span class="ttl">Stirring is the assumption that actually breaks</span></a></li>
+  </ul>
+
+  <!-- ═══════════════════════════ 01 ═══════════════════════════ -->
+  <section id="s01">
+    <div class="chno">01 - framing</div>
+    <h2>The size of the pot does not change the spoonful</h2>
+
+    <p>You are cooking soup. To find out whether it needs salt you take one
+    spoonful. You do not take a proportional spoonful - you do not take a bigger
+    spoon because the pot is bigger. One spoonful settles the question for a
+    bowl and for a cauldron alike, <em>provided you stirred</em>.</p>
+
+    <p>This is the whole of sampling, and it is the part that feels wrong. The
+    intuition most people carry is that a poll of 1,000 tells you very little
+    about 300 million, because 1,000 is such a tiny <em>fraction</em>. That
+    intuition is measuring the wrong thing. What buys you precision is the
+    <span class="smp-word">absolute size of the sample</span>, not its share of
+    the <span class="pop-word">population</span>. A sample of 1,000 is about as
+    informative about a country of 300 million as it is about a town of
+    30,000.</p>
+
+    <div class="key">
+      <span class="lab">Remember</span>
+      <p>I thought a bigger population needed a bigger sample. Actually the
+      population size drops out almost entirely - what you are buying with each
+      extra person is a smaller spread, and the pot has nothing to do with
+      it.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ 02 ═══════════════════════════ -->
+  <section id="s02">
+    <div class="chno">02 - the mechanism</div>
+    <h2>Your answer is a random variable, not a number</h2>
+
+    <p>Draw a sample, average it, and you get a number. It feels solid. But had
+    you knocked on a different set of doors that morning you would have got a
+    different number - so the thing you are holding is not really a number at
+    all. It is one draw from a distribution of numbers you could have got.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 540 210">
+        <!-- population -->
+        <ellipse cx="88" cy="92" rx="66" ry="56" fill="none" stroke="var(--pop)" stroke-width="1.4"/>
+        <g fill="var(--pop)" opacity="0.5">
+          <circle cx="60" cy="66" r="3"/><circle cx="86" cy="58" r="3"/><circle cx="112" cy="72" r="3"/>
+          <circle cx="52" cy="94" r="3"/><circle cx="78" cy="88" r="3"/><circle cx="104" cy="100" r="3"/>
+          <circle cx="66" cy="120" r="3"/><circle cx="92" cy="126" r="3"/><circle cx="118" cy="112" r="3"/>
+          <circle cx="128" cy="90" r="3"/><circle cx="48" cy="118" r="3"/><circle cx="74" cy="108" r="3"/>
+        </g>
+        <text class="svg-label" x="88" y="168" text-anchor="middle" fill="var(--pop)">population</text>
+        <text class="svg-small" x="88" y="184" text-anchor="middle">true mean μ</text>
+
+        <!-- three draws -->
+        <g stroke="var(--smp)" stroke-width="1.2" fill="none">
+          <path d="M158 66 L232 44" marker-end="url(#ar)"/>
+          <path d="M158 92 L232 92" marker-end="url(#ar)"/>
+          <path d="M158 118 L232 140" marker-end="url(#ar)"/>
+        </g>
+        <defs>
+          <marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0 0 L8 4 L0 8 z" fill="var(--smp)"/>
+          </marker>
+        </defs>
+
+        <g fill="none" stroke="var(--smp)" stroke-width="1.3">
+          <rect x="238" y="30" width="62" height="28"/>
+          <rect x="238" y="78" width="62" height="28"/>
+          <rect x="238" y="126" width="62" height="28"/>
+        </g>
+        <g class="svg-small" text-anchor="middle" fill="var(--smp)">
+          <text x="269" y="48">sample 1</text>
+          <text x="269" y="96">sample 2</text>
+          <text x="269" y="144">sample 3</text>
+        </g>
+
+        <!-- estimates land on an axis -->
+        <line x1="330" y1="92" x2="512" y2="92" stroke="var(--rule)" stroke-width="1.2"/>
+        <line x1="421" y1="80" x2="421" y2="104" stroke="var(--pop)" stroke-width="1.4" stroke-dasharray="3 3"/>
+        <text class="svg-small" x="421" y="118" text-anchor="middle" fill="var(--pop)">μ</text>
+        <g fill="var(--est)">
+          <circle cx="404" cy="92" r="4"/>
+          <circle cx="437" cy="92" r="4"/>
+          <circle cx="415" cy="92" r="4"/>
+        </g>
+        <path d="M338 68 Q421 20 504 68" fill="none" stroke="var(--est)" stroke-width="1.3" stroke-dasharray="4 3"/>
+        <text class="svg-label" x="421" y="152" text-anchor="middle" fill="var(--est)">the estimates</text>
+        <text class="svg-small" x="421" y="168" text-anchor="middle">they scatter around μ</text>
+      </svg>
+      <div class="caption">Fig. 1 - one population, three samples, three different answers. The dashed curve is the shape they scatter in.</div>
+    </div>
+
+    <div class="formula">
+      <span class="lab">the sample mean</span>
+      <div class="eq">$$\bar{x} = \frac{1}{n}\sum_{i=1}^{n} x_i$$</div>
+    </div>
+    <div class="where">
+      <span class="wlab">reading it</span>
+      <ul>
+        <li><b>x&#773;</b> - "x-bar", the average of the people you actually asked. Your answer.</li>
+        <li><b>n</b> - how many you asked. The sample size.</li>
+        <li><b>x&#7522;</b> - the value you got from person <em>i</em>. One measurement.</li>
+        <li><b>Σ</b> - "add up all of them", from the first person to the n-th.</li>
+        <li><b>the whole expression</b> - add up everyone you measured, divide by how many there were. Nothing more than an average - the interesting part is that this average is itself random.</li>
+      </ul>
+    </div>
+
+    <p>Because <span class="est-word">x&#773;</span> is random, asking "is my
+    answer right?" is the wrong question. It is almost certainly not exactly
+    right. The answerable question is <em>how far off is it likely to be</em> -
+    and that has a formula, which is <a class="xref" href="#s03">§03</a>.</p>
+
+    <div class="key">
+      <span class="lab">Remember</span>
+      <p>The sample mean is not an approximation of a number, it is a draw from a
+      distribution. Everything useful in statistics comes from knowing the shape
+      of that distribution without ever seeing it.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ 03 ═══════════════════════════ -->
+  <section id="s03">
+    <div class="chno">03 - the shape of the trade</div>
+    <h2>Four times the work buys half the error</h2>
+
+    <p>The spread of that distribution has a name - the
+    <span class="est-word">standard error</span> - and a formula so short it
+    hides how much it decides.</p>
+
+    <div class="formula">
+      <span class="lab">standard error of the mean</span>
+      <div class="eq">$$SE = \frac{\sigma}{\sqrt{n}}$$</div>
+    </div>
+    <div class="where">
+      <span class="wlab">reading it</span>
+      <ul>
+        <li><b>SE</b> - the typical distance between your answer and the truth. Small SE, trustworthy answer.</li>
+        <li><b>σ</b> - "sigma", how spread out the population is. If everyone answers nearly the same, σ is small and one spoonful settles it.</li>
+        <li><b>n</b> - the sample size, as before.</li>
+        <li><b>√n</b> - the square root of the sample size. This is the whole story, see below.</li>
+        <li><b>the whole expression</b> - your error is the population's own messiness, divided by the square root of how many you asked. Note what is <em>absent</em>: the population size never appears.</li>
+      </ul>
+    </div>
+
+    <p>The square root is the cruel part. To halve your error you do not need
+    twice the sample, you need <strong>four times</strong> it. To cut it to a
+    tenth, a hundred times. Precision gets expensive fast, and it is why polls
+    cluster around a thousand people rather than a hundred thousand: the first
+    thousand buys most of what is affordable to buy.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 540 160">
+        <line x1="118" y1="140" x2="512" y2="140" stroke="var(--rule)" stroke-width="1"/>
+        <line x1="315" y1="16" x2="315" y2="140" stroke="var(--pop)" stroke-width="1.3" stroke-dasharray="3 3"/>
+        <text class="svg-small" x="315" y="154" text-anchor="middle" fill="var(--pop)">μ</text>
+
+        <!-- n = 100 -->
+        <text class="svg-label" x="106" y="36" text-anchor="end">n = 100</text>
+        <line x1="187" y1="31" x2="443" y2="31" stroke="var(--est)" stroke-width="2.4"/>
+        <line x1="187" y1="23" x2="187" y2="39" stroke="var(--est)" stroke-width="2.4"/>
+        <line x1="443" y1="23" x2="443" y2="39" stroke="var(--est)" stroke-width="2.4"/>
+
+        <!-- n = 400 -->
+        <text class="svg-label" x="106" y="76" text-anchor="end">n = 400</text>
+        <line x1="251" y1="71" x2="379" y2="71" stroke="var(--est)" stroke-width="2.4"/>
+        <line x1="251" y1="63" x2="251" y2="79" stroke="var(--est)" stroke-width="2.4"/>
+        <line x1="379" y1="63" x2="379" y2="79" stroke="var(--est)" stroke-width="2.4"/>
+
+        <!-- n = 1600 -->
+        <text class="svg-label" x="106" y="116" text-anchor="end">n = 1600</text>
+        <line x1="283" y1="111" x2="347" y2="111" stroke="var(--est)" stroke-width="2.4"/>
+        <line x1="283" y1="103" x2="283" y2="119" stroke="var(--est)" stroke-width="2.4"/>
+        <line x1="347" y1="103" x2="347" y2="119" stroke="var(--est)" stroke-width="2.4"/>
+
+        <text class="svg-small" x="466" y="76" fill="var(--soft)">×4 sample</text>
+        <text class="svg-small" x="466" y="92" fill="var(--soft)">½ width</text>
+      </svg>
+      <div class="caption">Fig. 2 - each bar is the range your answer plausibly lands in. Sixteen times the sample halves the width twice.</div>
+    </div>
+
+    <table class="grid">
+      <tr>
+        <th class="l">sample size n</th>
+        <th>√n</th>
+        <th>SE, as a share of σ</th>
+        <th>cost vs. n = 100</th>
+      </tr>
+      <tr><td class="l">100</td><td>10</td><td>0.100 σ</td><td>1×</td></tr>
+      <tr><td class="l">400</td><td>20</td><td>0.050 σ</td><td>4×</td></tr>
+      <tr><td class="l">1,600</td><td>40</td><td>0.025 σ</td><td>16×</td></tr>
+      <tr><td class="l">10,000</td><td>100</td><td>0.010 σ</td><td>100×</td></tr>
+    </table>
+
+    <div class="key">
+      <span class="lab">Remember</span>
+      <p>Precision improves with the square root of effort, so the returns
+      flatten almost immediately. The last doubling of accuracy always costs
+      more than everything that came before it.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ 04 ═══════════════════════════ -->
+  <section id="s04">
+    <div class="chno">04 - the failure mode</div>
+    <h2>Stirring is the assumption that actually breaks</h2>
+
+    <p>Everything above rested on one word in <a class="xref" href="#s01">§01</a>:
+    <em>stirred</em>. Every member of the population had to be equally likely to
+    end up in your spoon. When that holds, more sample means less error. When it
+    does not, more sample means a more confident wrong answer.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 540 170">
+        <!-- left: noisy but unbiased -->
+        <line x1="24" y1="126" x2="250" y2="126" stroke="var(--rule)" stroke-width="1"/>
+        <line x1="137" y1="34" x2="137" y2="126" stroke="var(--pop)" stroke-width="1.3" stroke-dasharray="3 3"/>
+        <path d="M40 118 Q137 30 234 118" fill="none" stroke="var(--est)" stroke-width="1.6"/>
+        <text class="svg-small" x="137" y="140" text-anchor="middle" fill="var(--pop)">μ</text>
+        <text class="svg-label" x="137" y="160" text-anchor="middle" fill="var(--est)">noisy, unbiased</text>
+        <text class="svg-small" x="137" y="22" text-anchor="middle">n fixes this</text>
+
+        <!-- right: precise but biased -->
+        <line x1="290" y1="126" x2="516" y2="126" stroke="var(--rule)" stroke-width="1"/>
+        <line x1="358" y1="34" x2="358" y2="126" stroke="var(--pop)" stroke-width="1.3" stroke-dasharray="3 3"/>
+        <path d="M406 118 Q450 34 494 118" fill="none" stroke="var(--bias)" stroke-width="1.6"/>
+        <text class="svg-small" x="358" y="140" text-anchor="middle" fill="var(--pop)">μ</text>
+        <text class="svg-label" x="410" y="160" text-anchor="middle" fill="var(--bias)">precise, biased</text>
+        <text class="svg-small" x="424" y="22" text-anchor="middle">n makes it worse</text>
+        <line x1="358" y1="100" x2="450" y2="100" stroke="var(--bias)" stroke-width="1.2" stroke-dasharray="2 2"/>
+      </svg>
+      <div class="caption">Fig. 3 - the standard error only describes the left-hand picture. Nothing in the formula can see the gap on the right.</div>
+    </div>
+
+    <p>The 1936 <em>Literary Digest</em> poll asked 2.4 million people and got
+    the US election badly wrong, because it drew names from telephone and car
+    registries in a year when owning either meant you were rich. A sample of
+    2.4 million with a tilt beat a sample of a few thousand without one - and
+    lost. The <span class="bias-word">bias</span> term does not appear in
+    <span class="est-word">SE</span>, so no amount of <em>n</em> reports it to
+    you. You have to reason about how the sample was drawn, which is judgement,
+    not arithmetic.</p>
+
+    <div class="key">
+      <span class="lab">Remember</span>
+      <p>The standard error measures noise, never tilt. A large sample tells you
+      your answer is stable, and says nothing at all about whether it is
+      pointed at the truth.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ closing ═══════════════════════════ -->
+  <section class="closing">
+    <div class="chno">In one breath</div>
+    <p class="breath">A sample is a spoonful, and the pot's size never enters the
+    question - what you carry away is not a number but a draw from a
+    distribution, whose spread is the population's own messiness divided by the
+    square root of how many you asked, so precision improves but only at
+    quadratically rising cost, and the entire arrangement rests on the soup
+    having been stirred, because the moment it was not, every extra spoonful
+    buys you nothing but confidence in the wrong answer.</p>
+  </section>
+
+  <div class="cross-refs">
+    <span class="label">prereqs</span>none
+    <br><span class="label">see also</span>nothing yet - this is the first blueprint in the hub. Link the next one here, in both directions.
+  </div>
+
+  <footer>
+    <span>blueprint v1 · last-quizzed: never</span>
+    <span>example shipped with the template</span>
+  </footer>
+
+</div>
+</body>
+</html>
