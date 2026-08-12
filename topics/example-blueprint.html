@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <style>
-  /* Page-local colour grammar. The same colour means the same thing in every
+  /* Page-local color grammar. The same color means the same thing in every
      diagram below - that is the rule, not a suggestion. */
   :root {
     --pop: #3A6EA5;   /* the population - everything you did not measure */
@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', function () {
   </header>
 
   <div class="legend">
-    <span class="label">colour grammar</span>
+    <span class="label">color grammar</span>
     <span class="swatch"><span class="dot" style="background: var(--pop)"></span><b>population</b></span>
     <span class="swatch"><span class="dot" style="background: var(--smp)"></span><b>sample</b></span>
     <span class="swatch"><span class="dot" style="background: var(--est)"></span><b>estimate</b></span>
@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr>
         <th class="l">sample size n</th>
         <th>√n</th>
-        <th>SE, as a share of σ</th>
+        <th>SE in units of sigma</th>
         <th>cost vs. n = 100</th>
       </tr>
       <tr><td class="l">100</td><td>10</td><td>0.100 σ</td><td>1×</td></tr>
@@ -330,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function () {
     2.4 million with a tilt beat a sample of a few thousand without one - and
     lost. The <span class="bias-word">bias</span> term does not appear in
     <span class="est-word">SE</span>, so no amount of <em>n</em> reports it to
-    you. You have to reason about how the sample was drawn, which is judgement,
+    you. You have to reason about how the sample was drawn, which is judgment,
     not arithmetic.</p>
 
     <div class="key">

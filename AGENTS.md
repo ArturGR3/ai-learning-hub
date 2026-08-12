@@ -297,14 +297,14 @@ not an exam.
 
 `validate.py` checks each blueprint in isolation, so it catches broken metas,
 network assets, and dangling links. It cannot see the *graph* decaying. Lint is
-the judgement pass over the whole hub - run it when asked, or when the hub has
+the judgment pass over the whole hub - run it when asked, or when the hub has
 grown by a few blueprints since the last one.
 
 Report everything found as a list **before fixing anything**, so the user
-prioritises. Four checks:
+prioritizes. Four checks:
 
 1. **Orphans.** A blueprint nothing else links to. Either it is genuinely new and
-   wants a link from its nearest neighbour, or it got disconnected by an edit.
+   wants a link from its nearest neighbor, or it got disconnected by an edit.
 2. **One-way links.** A lists B in `cross-refs` but B does not list A. The graph
    is the structure only if it holds in both directions - fix by editing B.
 3. **Concepts with no page.** A term carrying real weight in someone's prose,
