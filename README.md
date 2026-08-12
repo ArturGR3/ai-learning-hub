@@ -30,10 +30,8 @@ better example when you find one, and link it to whatever you learn next.
 Plain English first, then examples, then the precise terms. Diagrams when
 something is easier to show than to explain.
 
-A blueprint is as long as its topic deserves. A session on DNS might be four
-sections; one on causal inference might run to fourteen and read like a short
-field guide. Either way it is a single self-contained HTML file, so it opens
-anywhere, offline, years from now.
+A blueprint is as long as its topic deserves, and it is one self-contained HTML
+file, so it opens anywhere, offline, years from now.
 
 ## It grows into something
 
