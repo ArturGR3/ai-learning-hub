@@ -160,7 +160,7 @@ Head, and the shape of the body. For the full structure copy any file in
 </head>
 <body>
 <div class="page">
-  <nav class="crumb"><a href="../">Learning Hub</a><span>/</span>{{slug}}</nav>
+  <nav class="crumb"><a href="../index.html">Learning Hub</a><span>/</span>{{slug}}</nav>
 
   <header class="title">
     <div class="eyebrow">Intuition Blueprint</div>
@@ -246,9 +246,10 @@ edit those blueprints to link back. One write touches several files. Read
 dangling links. Note related concepts as HTML comments
 (`<!-- future blueprint: dns.html -->`) for laptop follow-up.
 
-**Breadcrumb:** the href must be `../`, not `/index.html`. `validate.py` errors
-on any body link ending in `.html` whose basename isn't in `topics/`; `../`
-sidesteps the check and resolves correctly from `topics/`.
+**Breadcrumb:** the href must be `../index.html`. Not `/index.html`, which is
+root-absolute and breaks over `file://`, and not `../`, which has no server to
+turn it into a page and so opens a raw folder listing instead. `validate.py`
+rejects both.
 
 ### Scope
 

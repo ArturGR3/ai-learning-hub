@@ -7,7 +7,9 @@ Checks:
   2. The hub stylesheet is linked by relative path, and no stylesheet or script
      is loaded over http(s) - the hub must render from disk with no network
   3. Required class names are present in the document
-  4. No <a href="X.html"> links to blueprints that don't exist in topics/
+  4. Every body link resolves to a file that actually exists, and no link
+     points at a directory - over file:// there is no server to turn a
+     directory into its index.html
 
 Exits 0 if all blueprints pass, 1 if any violations found.
 """
@@ -53,6 +55,7 @@ class BlueprintValidator(HTMLParser):
         self.css_hrefs = []
         self.script_srcs = []
         self.body_links = set()
+        self.dir_links = set()
         self.class_names = set()
         self._in_body = False
 
@@ -70,8 +73,16 @@ class BlueprintValidator(HTMLParser):
             self._in_body = True
         elif tag == "a" and self._in_body:
             href = attrs_dict.get("href", "")
-            if href.endswith(".html") and not href.startswith("http") and not href.startswith("#"):
-                self.body_links.add(os.path.basename(href))
+            if href.startswith(("http://", "https://", "//", "#", "mailto:")):
+                return
+            # Drop any fragment - "foo.html#s03" points at foo.html.
+            path = href.split("#", 1)[0]
+            if not path:
+                return
+            if path.endswith("/"):
+                self.dir_links.add(href)
+            elif path.endswith(".html"):
+                self.body_links.add(path)
 
         cls = attrs_dict.get("class", "")
         if cls:
@@ -123,10 +134,24 @@ def validate_file(filepath, all_filenames):
         if cls not in parser.class_names:
             errors.append(f'missing required class "{cls}"')
 
-    # 4. Body links to non-existent blueprints
-    for link in parser.body_links:
-        if link not in all_filenames:
-            errors.append(f'links to "{link}" which does not exist in topics/')
+    # 4. Body links must resolve to a file that exists on disk.
+    # Resolved relative to the blueprint, not to topics/, so "../index.html"
+    # is checked as the real path it points at.
+    here = os.path.dirname(filepath)
+    for link in sorted(parser.body_links):
+        target = os.path.normpath(os.path.join(here, link))
+        if not os.path.isfile(target):
+            errors.append(f'links to "{link}" which does not exist')
+
+    # 5. No link may point at a directory. Over file:// there is no server to
+    # turn a directory into its index.html, so the browser renders a raw
+    # listing of the repo instead. "../" is the one that keeps getting written.
+    for link in sorted(parser.dir_links):
+        suggestion = link.rstrip("/") + "/index.html" if link != "../" else "../index.html"
+        errors.append(
+            f'links to the directory "{link}" - over file:// this opens a '
+            f'folder listing, not a page. Use "{suggestion}"'
+        )
 
     # Warnings (not failures)
     if parser.metas.get("source-chat", "").strip() == "":
