@@ -11,21 +11,7 @@ you, that you keep and keep editing.
 
 ## The loop
 
-```
-   a conversation where a new concept comes up
-                      |
-                      |   /learn
-                      v
-   +--------------------------------------+
-   |  a blueprint: one topic, one page    |
-   |  intuition first, then the details   |
-   +--------------------------------------+
-                      |
-                      v
-                  your hub
-                      |
-      re-read it  ·  edit it  ·  add to it  ·  get quizzed on it
-```
+<p align="center"><img src="docs/loop.png" alt="A conversation becomes a blueprint, the blueprint joins your hub, and you come back to re-read, edit and be quizzed on it" width="820"></p>
 
 Nothing here is finished. A blueprint is a page you go back to: fix the part
 that was wrong, add the example you only understood later, link it to the topic
@@ -41,7 +27,10 @@ opens anywhere, offline, years from now.
 
 ## It grows into something
 
-<p align="center"><img src="docs/index.png" alt="The Learning Hub index" width="760"></p>
+<p align="center"><img src="docs/index.png" alt="The index, listing blueprints with their tags and which are due for a quiz" width="760"></p>
+
+<p align="center"><sub>The index after a few months. It is generated from your
+blueprints, and it ships with one.</sub></p>
 
 Blueprints link to the ones they build on. That graph is the only organization -
 no folders, no categories, nothing to file things under. Clusters form because
