@@ -1,117 +1,72 @@
 # Learning Hub
 
-A folder of HTML pages that teach you things, plus a few scripts that keep the
-folder tidy.
+A place to keep what you learn.
 
-Clone it and double-click `index.html`. That is the entire setup. No build step,
-no server, no account, and nothing on any page talks to the network.
+<p align="center">
+  <img src="docs/index.png" alt="The Learning Hub index" width="760">
+</p>
 
-## The idea
+Every time you understand something new, you write it down as a **blueprint** -
+one page that teaches that one topic. The intuition first, then the examples,
+then the precise words, with a diagram wherever a picture says it better.
 
-Working with an AI assistant makes it very easy to *get the thing done* without
-ever learning what you just did. This repo is the counterweight. When you hit a
-concept you do not actually understand, you stop, learn it properly, and file
-the result here as a **blueprint**: one self-contained HTML page that teaches one
-topic, intuition first, with the diagrams and worked examples that make it
-stick.
+<p align="center">
+  <img src="docs/blueprint.png" alt="A blueprint" width="760">
+</p>
 
-Over time you get a small personal encyclopedia of the things you decided were
-worth understanding - written in your language, at your level, and readable
-offline forever.
+## The links are the point
 
-## Start here
+A blueprint points at the ones it builds on, and they point back. Those links are
+the only structure - there are no folders to organize and no categories to
+maintain. Related topics end up near each other because you kept linking them,
+and the shape of what you know appears on its own.
+
+That is the idea borrowed from the **LLM wiki**: do the thinking once, when you
+write the page, instead of redoing it every time you ask. A chat answers and
+disappears. A blueprint stays, and the next one connects to it. What compounds
+is not the pages - it is the connections between them.
+
+## Start
 
 ```bash
-git clone <this-repo> my-learning-hub
+git clone https://github.com/ArturGR3/ai-learning-hub my-learning-hub
 cd my-learning-hub
-open index.html            # macOS. On Linux: xdg-open index.html
+open index.html
 ```
 
-`topics/example-blueprint.html` is both a real lesson (why a poll of 1,000 works)
-and a demonstration of every convention the hub uses. Read it once before writing
-your own.
+Everything a page needs travels with it, so your hub opens anywhere, offline,
+years from now.
 
-## Make it yours
+`topics/example-blueprint.html` is a real lesson and a working example of every
+convention. Read it before writing your own.
 
-**1. Rewrite the top of `AGENTS.md`.** The "Who the user is" section is the only
-part of that file that is about *you*, and it is the part that decides whether
-the teaching lands. Say how you learn, what you already know, and what "too
-basic" looks like for you. Everything below it is machinery that works for
-anyone.
+## Write one
 
-**2. Install the `/learn` skill.**
+Install the skill once:
 
 ```bash
 ./scripts/install-skill.sh
 ```
 
-It creates one symlink, `~/.claude/skills/learn` pointing into this repo, and
-tells you so before it does anything. After restarting Claude Code you can type
-`/learn` from *any* project on your machine - the skill finds this hub through
-the symlink, reads `AGENTS.md`, and files the blueprint here. That is the whole
-point: the learning happens where the work happens.
+Then type `/learn` in any project. Claude teaches you the topic, turns it into a
+blueprint, and files it here.
 
-You can skip this and just point an agent at the repo by hand. It works, it is
-only more typing.
-
-**3. Delete `topics/example-blueprint.html`** once you have a blueprint of your
-own, then run `python3 scripts/build-index.py`.
-
-## The layout
-
-| Path | What it is |
-|---|---|
-| `topics/*.html` | The blueprints. The knowledge, and the only irreplaceable part. |
-| `index.html` | Generated from the blueprints' metadata. Searchable, sortable, committed. |
-| `assets/` | The stylesheet, the webfonts, and KaTeX - all vendored, none fetched. |
-| `scripts/` | Validate, rebuild the index, file a blueprint, install the skill. |
-| `skills/learn/` | The `/learn` skill, versioned alongside the conventions it obeys. |
-| `AGENTS.md` | The conventions. `CLAUDE.md` is a symlink to it. |
-| `log.md` | Append-only record of what was filed when. |
-| `deploy/` | Optional ways to read the hub from your phone. You need none of it. |
-
-## Adding a blueprint
-
-Write it to `topics/<slug>.html` following `AGENTS.md`, then:
+Prefer to write the HTML yourself? File it with:
 
 ```bash
-./scripts/file-blueprint.sh topics/<slug>.html "topic - one-line summary"
+./scripts/file-blueprint.sh topics/<name>.html "topic - one line"
 ```
 
-That validates the page, rebuilds `index.html`, appends `log.md`, commits, and
-pushes if you have a remote. Use the script rather than git directly - it is what
-keeps the committed index in step with the topics.
+## Make it yours
 
-To check the hub without filing anything:
+Open `AGENTS.md` and rewrite the top section: who you are and how you learn. That
+is what an agent reads before teaching you anything. Everything below it already
+works for anyone.
 
-```bash
-python3 scripts/validate.py
-```
+Then delete the example and write your first blueprint.
 
-## Local-first, on purpose
+---
 
-Three rules, and `validate.py` enforces the first two:
+Want it on your phone? See `deploy/`. Most people never need it.
 
-1. **No runtime network calls.** Fonts, stylesheet, and the maths renderer all
-   ship in `assets/`. Any `http` stylesheet or script is a validation error.
-2. **Relative paths only.** Root-absolute paths look fine on a web server and
-   break the moment you open the file from disk.
-3. **Generated files are committed.** A fresh clone renders with no Python, no
-   npm, and no tooling of any kind installed.
-
-The payoff: this repo still works on a plane, in ten years, on a machine that has
-never heard of it. Your notes should outlive the tools that made them.
-
-## Reading it on your phone
-
-Optional, and genuinely optional - most people never bother. `deploy/` covers the
-two paths if you want one: a private Raspberry Pi over Tailscale, or Cloudflare
-Pages. Start by reading `deploy/README.md`, which mostly argues that you do not
-need either.
-
-## License
-
-MIT - see `LICENSE`. Use it, fork it, change it, no obligations.
-
-The blueprints you write are yours and are not covered by it. This license is
-about the machinery you cloned, not the understanding you build with it.
+MIT licensed. The blueprints you write are yours.
