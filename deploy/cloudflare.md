@@ -9,7 +9,8 @@ different things. Pages builds from your private repo and serves the result to
 browser history, in link previews, in anything you paste it into, and in
 Certificate Transparency logs. Treat the site as public, because it is.
 
-If that is not acceptable, use `pi-tailscale.md` instead, or nothing at all.
+If that is not acceptable, you have two ways forward: put Cloudflare Access in
+front of it (below), or use `pi-tailscale.md`, which is private by default.
 
 ## Setup
 

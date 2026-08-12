@@ -67,5 +67,5 @@ Then delete the example and write your first blueprint.
 
 ---
 
-Reading the hub on your phone is optional and covered in `deploy/`. MIT licensed;
-the blueprints you write are yours.
+To read your hub on your phone, `deploy/` covers the two ways. MIT licensed; the
+blueprints you write are yours.

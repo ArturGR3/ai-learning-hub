@@ -42,8 +42,9 @@ protect it:
 
 There is no CI. Nothing rebuilds on push. This file is the layout reference -
 `README.md` is deliberately kept to what a stranger needs in the first minute.
-`deploy/` covers reading the hub from a phone, which is optional and which most
-owners never need.
+`deploy/` covers serving the hub to a phone, which for many owners is a primary
+way of reading it, not an afterthought. Whatever serves it is pull-only: it
+clones, pulls, and serves, and never writes back.
 
 ## How to build a blueprint
 
