@@ -62,16 +62,29 @@
 
   <!-- 02 blueprint -->
   <text class="step" x="392" y="30">02</text>
-  <rect x="392" y="46" width="216" height="120" rx="12" fill="var(--card)" stroke="var(--fg)" stroke-width="2.6"/>
-  <rect x="392" y="46" width="216" height="7" rx="3.5" fill="var(--acc)"/>
-  <rect x="416" y="76" width="112" height="13" rx="6.5" fill="var(--fg)"/>
-  <rect x="416" y="99" width="168" height="10" rx="5" fill="var(--fill)"/>
-  <rect x="416" y="117" width="146" height="10" rx="5" fill="var(--fill)"/>
-  <rect x="416" y="136" width="62" height="20" rx="4" fill="none" stroke="var(--acc)" stroke-width="1.6"/>
-  <rect x="490" y="136" width="94" height="20" rx="4" fill="var(--fill)"/>
+  <!-- The content runs past the bottom of the card and fades out: a blueprint is
+       as long as its topic needs, and a three-line stub would say otherwise. -->
+  <clipPath id="bpClip"><rect x="392" y="46" width="216" height="120" rx="12"/></clipPath>
+  <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="var(--card)" stop-opacity="0"/>
+    <stop offset="1" stop-color="var(--card)" stop-opacity="1"/>
+  </linearGradient>
+  <rect x="392" y="46" width="216" height="120" rx="12" fill="var(--card)"/>
+  <g clip-path="url(#bpClip)">
+    <rect x="392" y="46" width="216" height="7" fill="var(--acc)"/>
+    <rect x="416" y="72" width="112" height="12" rx="6" fill="var(--fg)"/>
+    <rect x="416" y="93" width="168" height="9" rx="4.5" fill="var(--fill)"/>
+    <rect x="416" y="108" width="146" height="9" rx="4.5" fill="var(--fill)"/>
+    <rect x="416" y="126" width="58" height="18" rx="4" fill="none" stroke="var(--acc)" stroke-width="1.6"/>
+    <rect x="484" y="126" width="100" height="18" rx="4" fill="var(--fill)"/>
+    <rect x="416" y="153" width="160" height="9" rx="4.5" fill="var(--fill)"/>
+    <rect x="416" y="168" width="132" height="9" rx="4.5" fill="var(--fill)"/>
+    <rect x="392" y="132" width="216" height="34" fill="url(#fade)"/>
+  </g>
+  <rect x="392" y="46" width="216" height="120" rx="12" fill="none" stroke="var(--fg)" stroke-width="2.6"/>
   <text class="ttl" x="392" y="204">A blueprint</text>
-  <text class="sub" x="392" y="232">One topic, one page.</text>
-  <text class="sub" x="392" y="256">Intuition first, then detail.</text>
+  <text class="sub" x="392" y="232">One topic, however deep</text>
+  <text class="sub" x="392" y="256">it goes. Intuition first.</text>
 
   <path d="M624,106 L702,106" stroke="var(--mut)" stroke-width="2.2" fill="none" marker-end="url(#ar)"/>
 

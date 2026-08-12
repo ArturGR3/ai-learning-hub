@@ -6,8 +6,8 @@ You are working with an AI and something comes up that you do not really
 understand. You ask. It explains, it clicks, you move on. Then the chat scrolls
 away, and a month later you are asking the same question again.
 
-This is where that explanation goes instead: one page per topic, written for
-you, that you keep and keep editing.
+This is where that explanation goes instead: one **blueprint** per topic,
+written for you, that you keep and keep editing.
 
 ## The loop
 
@@ -27,9 +27,15 @@ you learned this week.
   <img src="docs/blueprint.png" alt="A blueprint: a claim as its title, a color legend, a table of contents, and a section that opens in plain English and ends with a Remember box">
 </picture>
 
-Plain English first, then the examples, then the precise terms, with a diagram
-wherever a picture says it faster. It is one self-contained HTML file, so it
-opens anywhere, offline, years from now.
+Plain English first, then examples, then the precise terms. Diagrams appear
+where drawing something explains it better than describing it would.
+
+A blueprint is as long as its topic deserves. A session on DNS might be four
+sections; one on causal inference might run to fourteen and read like a short
+field guide. What makes it one blueprint is that it covers one thing, end to
+end, rather than being trimmed to a convenient size. It is a single
+self-contained HTML file either way, so it opens anywhere, offline, years from
+now.
 
 ## It grows into something
 
