@@ -1,79 +1,166 @@
 #!/usr/bin/env bash
-# install-skill.sh - make /learn available in every Claude Code session.
+# Install the hub's learn skill for Claude Code, Codex, and OpenCode.
 #
 # Usage: ./scripts/install-skill.sh [--yes]
 #
-# The skill lives in this repo at skills/learn/. Claude Code looks for skills in
-# ~/.claude/skills/, so this script symlinks one into the other:
+# The repository remains the single source. The installer creates two links:
 #
-#     ~/.claude/skills/learn  ->  <this repo>/skills/learn
+#   ~/.agents/skills/learn  -> <this repo>/skills/learn  (Codex + OpenCode)
+#   ~/.claude/skills/learn  -> <this repo>/skills/learn  (Claude Code)
 #
-# A symlink rather than a copy, for one reason: the skill and the conventions it
-# points at are then the same checkout. Pull the repo and the skill is current.
-# It also means /learn resolves this hub's path from the link itself, instead of
-# searching the disk for something that looks like a hub.
-#
-# This is the only thing in the whole setup that writes outside the repo, so it
-# says exactly what it will do and waits for a yes.
+# Existing entries are moved to timestamped backups. If installation fails,
+# the script removes links it created and restores entries it moved.
 
-set -euo pipefail
+set -Eeuo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE="$REPO_ROOT/skills/learn"
-SKILLS_DIR="$HOME/.claude/skills"
-TARGET="$SKILLS_DIR/learn"
+resolve_directory() (
+  cd -P "$1" 2>/dev/null
+  pwd -P
+)
+
+points_to_source() {
+  local target="$1"
+  local resolved
+
+  [ -L "$target" ] || return 1
+  resolved="$(resolve_directory "$target")" || return 1
+  [ "$resolved" = "$SOURCE" ]
+}
+
+next_backup_path() {
+  local client="$1"
+  local candidate="$BACKUP_ROOT/$client/learn-$BACKUP_STAMP"
+  local suffix=1
+
+  while [ -e "$candidate" ] || [ -L "$candidate" ]; do
+    candidate="$BACKUP_ROOT/$client/learn-${BACKUP_STAMP}-${suffix}"
+    suffix=$((suffix + 1))
+  done
+
+  printf '%s\n' "$candidate"
+}
+
+rollback() {
+  local exit_code="${1:-1}"
+  local index
+  local target
+
+  trap - ERR INT TERM
+  set +e
+  echo ""
+  echo "  Installation failed. Restoring the previous setup."
+
+  for ((index = ${#CREATED_TARGETS[@]} - 1; index >= 0; index--)); do
+    target="${CREATED_TARGETS[$index]}"
+    if [ -L "$target" ]; then
+      unlink "$target"
+    fi
+  done
+
+  for ((index = ${#MOVED_TARGETS[@]} - 1; index >= 0; index--)); do
+    target="${MOVED_TARGETS[$index]}"
+    if { [ -e "${MOVED_BACKUPS[$index]}" ] || [ -L "${MOVED_BACKUPS[$index]}" ]; } &&
+       [ ! -e "$target" ] && [ ! -L "$target" ]; then
+      mv "${MOVED_BACKUPS[$index]}" "$target"
+    fi
+  done
+
+  exit "$exit_code"
+}
 
 ASSUME_YES=false
-if [ "${1:-}" = "--yes" ] || [ "${1:-}" = "-y" ]; then
-  ASSUME_YES=true
+case "${1:-}" in
+  "") ;;
+  --yes|-y) ASSUME_YES=true ;;
+  *)
+    echo "Usage: $0 [--yes]" >&2
+    exit 2
+    ;;
+esac
+
+if [ "$#" -gt 1 ]; then
+  echo "Usage: $0 [--yes]" >&2
+  exit 2
 fi
 
+REPO_ROOT="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+SOURCE="$(resolve_directory "$REPO_ROOT/skills/learn")"
+INSTALL_HOME="${AI_LEARNING_HUB_HOME:-$HOME}"
+BACKUP_ROOT="$INSTALL_HOME/.ai-learning-hub/backups/skills"
+TARGETS=(
+  "$INSTALL_HOME/.agents/skills/learn"
+  "$INSTALL_HOME/.claude/skills/learn"
+)
+BACKUP_CLIENTS=(
+  "agents"
+  "claude"
+)
+LABELS=(
+  "Codex and OpenCode"
+  "Claude Code"
+)
+BACKUPS=("" "")
+CREATED_TARGETS=()
+MOVED_TARGETS=()
+MOVED_BACKUPS=()
+BACKUP_STAMP="$(date '+%Y%m%d-%H%M%S')"
+NEEDS_CHANGES=false
+
 if [ ! -f "$SOURCE/SKILL.md" ]; then
-  echo "ERROR: $SOURCE/SKILL.md not found - run this from inside the hub repo."
+  echo "ERROR: $SOURCE/SKILL.md not found." >&2
   exit 1
 fi
 
-# Already installed and pointing here? Nothing to do.
-if [ -L "$TARGET" ] && [ "$(readlink -f "$TARGET")" = "$(readlink -f "$SOURCE")" ]; then
-  echo "Already installed: $TARGET -> $SOURCE"
+for ((index = 0; index < ${#TARGETS[@]}; index++)); do
+  target="${TARGETS[$index]}"
+  if points_to_source "$target"; then
+    continue
+  fi
+
+  NEEDS_CHANGES=true
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    BACKUPS[$index]="$(next_backup_path "${BACKUP_CLIENTS[$index]}")"
+  fi
+done
+
+if [ "$NEEDS_CHANGES" = false ]; then
+  echo "Already installed for Claude Code, Codex, and OpenCode:"
+  echo "  ${TARGETS[0]} -> $SOURCE"
+  echo "  ${TARGETS[1]} -> $SOURCE"
   exit 0
 fi
 
 echo ""
 echo "  What this installs"
 echo "  ------------------"
-echo "  The /learn skill, so any Claude Code session on this machine can teach a"
-echo "  topic, capture what a work session taught you, and file the result here as"
-echo "  a blueprint. Without it you can still do all of that - you just have to"
-echo "  point the agent at this repo by hand every time."
+echo "  The learn skill for Claude Code, Codex, and OpenCode. It lets an agent"
+echo "  teach a topic or capture a work session as a blueprint in this hub."
 echo ""
 echo "  What it changes on your machine"
 echo "  -------------------------------"
-echo "  Creates one symlink:"
-echo ""
-echo "      $TARGET"
-echo "        -> $SOURCE"
-echo ""
-echo "  Nothing else. No files copied, no settings edited, nothing downloaded."
-echo "  To uninstall:  rm $TARGET"
-echo ""
 
-# Something is already there and it is not ours.
-if [ -e "$TARGET" ] || [ -L "$TARGET" ]; then
-  echo "  Heads up: $TARGET already exists."
-  if [ -L "$TARGET" ]; then
-    echo "  It is a symlink to: $(readlink "$TARGET")"
+for ((index = 0; index < ${#TARGETS[@]}; index++)); do
+  target="${TARGETS[$index]}"
+  echo "  ${LABELS[$index]}:"
+  if points_to_source "$target"; then
+    echo "    Already linked: $target"
+  elif [ -n "${BACKUPS[$index]}" ]; then
+    echo "    Preserve:       $target"
+    echo "      as:           ${BACKUPS[$index]}"
+    echo "    Create link:    $target"
+    echo "      ->            $SOURCE"
   else
-    echo "  It is a real directory - possibly a /learn skill of your own."
+    echo "    Create link:    $target"
+    echo "      ->            $SOURCE"
   fi
-  echo "  Installing replaces it. Back it up first if you want to keep it."
   echo ""
-fi
+done
+
+echo "  No settings are edited and nothing is downloaded."
+echo ""
 
 if [ "$ASSUME_YES" = false ]; then
   printf "  Install? [y/N] "
-  # /dev/tty first, so the prompt still works when the script is piped in.
-  # Fall back to stdin, and treat "no input at all" as no.
   if ! { read -r REPLY </dev/tty; } 2>/dev/null; then
     read -r REPLY || REPLY=""
   fi
@@ -83,11 +170,35 @@ if [ "$ASSUME_YES" = false ]; then
   esac
 fi
 
-mkdir -p "$SKILLS_DIR"
-rm -rf "$TARGET"
-ln -s "$SOURCE" "$TARGET"
+trap 'rollback $?' ERR
+trap 'rollback 130' INT
+trap 'rollback 143' TERM
+
+for ((index = 0; index < ${#TARGETS[@]}; index++)); do
+  target="${TARGETS[$index]}"
+  if points_to_source "$target"; then
+    continue
+  fi
+
+  mkdir -p "$(dirname "$target")"
+  if [ -n "${BACKUPS[$index]}" ]; then
+    mkdir -p "$(dirname "${BACKUPS[$index]}")"
+    mv "$target" "${BACKUPS[$index]}"
+    MOVED_TARGETS+=("$target")
+    MOVED_BACKUPS+=("${BACKUPS[$index]}")
+  fi
+
+  ln -s "$SOURCE" "$target"
+  CREATED_TARGETS+=("$target")
+done
+
+trap - ERR INT TERM
 
 echo ""
-echo "  Installed: $TARGET -> $SOURCE"
-echo "  Restart Claude Code - skills load at session start - then run /learn."
+echo "  Installed for Claude Code, Codex, and OpenCode."
+echo "  Start a new client session if the learn skill does not appear immediately."
+echo ""
+echo "  Claude Code: /learn"
+echo '  Codex:      $learn'
+echo "  OpenCode:   ask it to use the learn skill"
 echo ""

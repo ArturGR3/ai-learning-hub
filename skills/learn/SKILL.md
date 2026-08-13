@@ -3,7 +3,7 @@ name: learn
 description: Trigger a learning session. Crystallize understanding into a blueprint - teach a concept from scratch, capture learnings from a work session, or generate a blueprint directly.
 ---
 
-# /learn
+# Learn
 
 Invoke this skill when you want to crystallize understanding into a blueprint.
 
@@ -13,23 +13,29 @@ the hub is usually somewhere else on disk.
 
 ## Step 1: Locate the hub and read its conventions
 
-This file lives inside the hub, at `<hub>/skills/learn/SKILL.md`, and
-`scripts/install-skill.sh` symlinks it into `~/.claude/skills/learn`. So the
-normal case resolves in one command:
+This file lives inside the hub at `<hub>/skills/learn/SKILL.md`. The installer
+links that directory into the personal skill locations used by supported coding
+agents.
 
-```bash
-dirname "$(dirname "$(readlink -f ~/.claude/skills/learn)")"
-```
-
-Take that as the hub root when it prints a directory containing `topics/` and
-`scripts/file-blueprint.sh`. If it doesn't, fall back in this order:
+Find the hub in this order:
 
 1. `$LEARNING_HUB`, if set.
-2. The current directory or any ancestor of it - you may already be in the hub.
-3. **Ask the user where their hub is.**
+2. The real path of this active skill directory, when the client provides it.
+   Resolve symlinks, then move up from `skills/learn` to the hub root.
+3. The installed skill locations:
+   - `~/.agents/skills/learn`
+   - `~/.claude/skills/learn`
+
+   Resolve symlinks, then move up from `skills/learn` to the hub root.
+4. The current directory or any ancestor of it - you may already be in the hub.
+5. **Ask the user where their hub is.**
+
+A valid hub contains `topics/` and `scripts/file-blueprint.sh`. Validate every
+candidate before using it. If several candidates point to different valid hubs,
+list them and ask which one to use.
 
 **Never fetch anything, never guess a path, and never clone or create a hub
-uninvited.** If several candidates match, list them and ask which one.
+uninvited.**
 
 Then read `AGENTS.md` from the hub you found. It is self-contained and it
 governs everything below: the teaching method, the template patterns, the

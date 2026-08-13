@@ -82,15 +82,23 @@ The core workflow is not tied to one agent. It lives in `AGENTS.md`, so an agent
 working inside the hub can read the same teaching and filing instructions.
 
 Capturing a lesson while working in another repository needs a global skill
-that can locate your hub. The included installer currently sets up `/learn` for
-Claude Code:
+that can locate your hub. Install it once:
 
 ```bash
 ./scripts/install-skill.sh
 ```
 
-Codex and OpenCode can work inside the hub today. Their global, cross-project
-shortcuts are not documented yet.
+The installer links the same versioned skill into the personal skill locations
+used by all three supported agents:
+
+| Agent | Start a learning session |
+| --- | --- |
+| Claude Code | Run `/learn` |
+| Codex | Type `$learn` in your prompt |
+| OpenCode | Ask it to use the `learn` skill |
+
+If a `learn` skill already exists in one of those locations, the installer
+moves it to a timestamped backup before creating the link. Nothing is deleted.
 
 ## Read it elsewhere
 
