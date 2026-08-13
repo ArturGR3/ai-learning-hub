@@ -32,28 +32,23 @@ cross-links, index, and filing.
 
 ## Start your own hub
 
-1. [Create a repository from this template](https://github.com/ArturGR3/ai-learning-hub/generate).
-2. Give it a name and choose **Private**. Blueprints may contain personal notes
-   or details from work conversations.
-3. Clone your new repository and open it with your coding agent.
-4. Give the agent this prompt:
+Blueprints may contain personal notes or details from work conversations, so a
+private repository is the safest default.
 
-   ```text
-   Read AGENTS.md and help me set up this learning hub for my use. Explain the
-   setup before changing anything. Then help me personalize how the hub teaches
-   me and open the included example.
-   ```
+You can follow the [setup guide](SETUP.md) yourself, or give a coding agent this
+prompt:
 
-Your agent can handle the setup and explain each step. If you prefer to clone it
-yourself:
+```text
+Set up a private learning hub for me from
+https://github.com/ArturGR3/ai-learning-hub.
 
-```bash
-git clone YOUR_PRIVATE_REPOSITORY_URL my-learning-hub
-cd my-learning-hub
+Use GitHub CLI. Ask me for the repository name and clone location if you need
+them. Explain what you will change before changing it. After cloning my copy,
+read SETUP.md and follow it.
 ```
 
-Open `index.html` in a browser to see the hub. The included blueprint is both a
-real lesson and an example of the format.
+The guide covers creating your private repository, personalizing the teaching
+style, installing the skill, validating the hub, and opening the example.
 
 ## Create your first blueprint
 
@@ -87,6 +82,8 @@ that can locate your hub. Install it once:
 ```bash
 ./scripts/install-skill.sh
 ```
+
+For agent-run or non-interactive setup, follow [SETUP.md](SETUP.md).
 
 The installer links the same versioned skill into the personal skill locations
 used by all three supported agents:

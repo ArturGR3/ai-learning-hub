@@ -6,6 +6,8 @@ applies to its instructions too.
 
 `CLAUDE.md` is a symlink to this file.
 
+For first-time setup, read and follow [SETUP.md](SETUP.md) before using the rest of this file.
+
 ## Who the user is
 
 > **Owner: rewrite this section first.** Everything else in this file is
