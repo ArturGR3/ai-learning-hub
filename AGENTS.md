@@ -8,24 +8,6 @@ applies to its instructions too.
 
 For first-time setup, read and follow [SETUP.md](SETUP.md) before using the rest of this file.
 
-## Who the user is
-
-> **Owner: rewrite this section first.** Everything else in this file is
-> machinery and applies to any hub. This section is the only part that is about
-> *you*, and it is what makes the teaching land. What follows is a placeholder.
-
-Someone building understanding with AI assistance. The goal is *understanding*,
-not artifacts. AI makes it too easy to skip the learning; this system keeps
-learning in the loop.
-
-Teach intuition-up: basic concepts → examples → intuition → precise terms. Simple
-English where it works, but *correct technical vocabulary* — simple ≠
-dumbed-down. Growing a vocabulary of precise terms is part of the point.
-
-Worth stating here: whether diagrams help you or distract you, which fields you
-already know cold, and what "too basic" and "too dense" each look like for you.
-An agent reads this before writing anything.
-
 ## The hub
 
 `topics/*.html` is the knowledge and the only irreplaceable part. `index.html` is
@@ -65,10 +47,14 @@ notes.
 
 Not every section needs all four. The order is a default, not a law.
 
+Start accessible without dumbing the topic down. Use simple English where it
+works and introduce the correct technical vocabulary. Building a precise
+vocabulary is part of the goal.
+
 ### Diagrams
 
-For a visual learner diagrams carry real weight — but only where they earn it. If
-**Who the user is** says diagrams don't help this owner, skip this section.
+Diagrams carry real weight, but only where they earn it. Use them by default when
+the topic benefits from seeing relationships or structure.
 
 **Use one for:** how parts relate, spatial structures, transformations,
 comparisons where shape matters.

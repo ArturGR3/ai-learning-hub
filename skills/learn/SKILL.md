@@ -48,20 +48,30 @@ paste.
 
 ## Step 2: Determine the mode
 
-Infer the mode from the user's request. Don't ask upfront - start with the
-natural first action.
+Infer the mode from the user's request. Do not ask the user to choose a mode.
+Start with the first action for the inferred mode.
 
 ### TEACH - "teach me X" / "I want to understand X"
 
 A dedicated learning session.
 
-1. **Diagnose**: Find where the user's understanding currently is. Ask what they
-   know, probe gently. A conversation, not a questionnaire.
-2. **Teach**: Build from their level up. Intuition first, then examples, then
-   precise terms. Diagrams where they earn their place. Check understanding as
-   you go - this is a conversation, not a monologue.
-3. **Crystallize**: Afterwards ask "want me to crystallize this into a
-   blueprint?" If yes → generate from the teaching → file it (step 3). If no →
+1. **Establish the starting point**: Tell the user that you first want to
+   understand their current mental model so the teaching starts in the right
+   place. Ask them to explain how they currently understand the topic in their
+   own words. Mention that they can use voice input if it is available and
+   easier for a longer answer. Do not ask them to label themselves as a
+   beginner, intermediate, or expert.
+2. **Find the gaps**: Identify what the user understands, where they are
+   uncertain, and which connections are missing or incorrect. Ask only the
+   follow-up questions needed to choose a starting point, one at a time. Do not
+   use a fixed questionnaire. Then summarize the starting point and gaps, and
+   let the user correct your assessment.
+3. **Teach**: Build from the assessed starting point. Skip material the user
+   already understands except where it anchors a new connection. Use intuition
+   first, then examples, then precise terms. Use diagrams where they earn their
+   place. Check understanding as you go.
+4. **Crystallize**: Afterwards ask "want me to crystallize this into a
+   blueprint?" If yes, generate from the teaching and file it (step 3). If no,
    offer a quiz.
 
 ### CRYSTALLIZE - "summarize what we learned" / "capture this session"

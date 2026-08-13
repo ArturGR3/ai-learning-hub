@@ -47,8 +47,8 @@ them. Explain what you will change before changing it. After cloning my copy,
 read SETUP.md and follow it.
 ```
 
-The guide covers creating your private repository, personalizing the teaching
-style, installing the skill, validating the hub, and opening the example.
+The guide covers creating your private repository, installing the skill,
+validating the hub, and opening the example.
 
 ## Create your first blueprint
 

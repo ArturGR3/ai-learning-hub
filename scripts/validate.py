@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""Validate hub setup and topics/*.html against the Learning Hub conventions.
+"""Validate topics/*.html against the Learning Hub conventions.
 
 Checks:
-  1. The hub owner section has been personalized
-  2. All required <meta> tags present (source-chat, last-quizzed, prerequisites,
+  1. All required <meta> tags present (source-chat, last-quizzed, prerequisites,
      tags, created, last-updated)
-  3. The hub stylesheet is linked by relative path, and no stylesheet or script
+  2. The hub stylesheet is linked by relative path, and no stylesheet or script
      is loaded over http(s) - the hub must render from disk with no network
-  4. Required class names are present in the document
-  5. Every body link resolves to a file that actually exists, and no link
+  3. Required class names are present in the document
+  4. Every body link resolves to a file that actually exists, and no link
      points at a directory - over file:// there is no server to turn a
      directory into its index.html
 
@@ -23,8 +22,6 @@ from html.parser import HTMLParser
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOPICS_DIR = os.path.join(REPO_ROOT, "topics")
 EXPECTED_CSS_HREF = "../assets/blueprint.css"
-UNCONFIGURED_OWNER_PROMPT = "> **Owner: rewrite this section first.**"
-
 REQUIRED_METAS = [
     "source-chat",
     "last-quizzed",
@@ -162,24 +159,6 @@ def validate_file(filepath, all_filenames):
     return errors, warnings
 
 
-def hub_configuration_warnings():
-    agents_path = os.path.join(REPO_ROOT, "AGENTS.md")
-
-    if not os.path.isfile(agents_path):
-        return ["AGENTS.md is missing"]
-
-    with open(agents_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    if UNCONFIGURED_OWNER_PROMPT in content:
-        return [
-            'hub owner is not configured - personalize "Who the user is" in '
-            "AGENTS.md and remove the placeholder owner note"
-        ]
-
-    return []
-
-
 def main():
     if not os.path.isdir(TOPICS_DIR):
         print("ERROR: topics/ directory not found")
@@ -190,16 +169,12 @@ def main():
     )
     all_filenames = set(html_files)
 
-    configuration_warnings = hub_configuration_warnings()
-    for warning in configuration_warnings:
-        print(f"WARN: {warning}")
-
     if not html_files:
         print("WARNING: no blueprints in topics/")
         return 0
 
     total_errors = 0
-    total_warnings = len(configuration_warnings)
+    total_warnings = 0
 
     for filename in html_files:
         filepath = os.path.join(TOPICS_DIR, filename)

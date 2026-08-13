@@ -2,8 +2,8 @@
 
 Use this guide when creating a hub or installing it on a new computer.
 
-Setup creates your private copy, personalizes how agents teach you, installs the
-`learn` skill, and verifies that the hub works.
+Setup creates your private copy, installs the `learn` skill, and verifies that
+the hub works.
 
 ## Use an existing hub on a new computer
 
@@ -57,17 +57,7 @@ gh repo view --json nameWithOwner,viewerPermission
 
 Stop and correct the repository if either check is wrong.
 
-## 2. Personalize how the hub teaches you
-
-Rewrite **Who the user is** in `AGENTS.md`.
-
-If an agent helps, it learns your preferences through a short conversation. It
-asks one question at a time, not as a questionnaire. When your answers are
-short, it drafts the section from the context it has and asks you to correct it.
-
-Remove the placeholder owner note after you approve the personalized section.
-
-## 3. Install the learning skill
+## 2. Install the learning skill
 
 The installer links the versioned `learn` skill into the personal skill
 locations used by Claude Code, Codex, and OpenCode. It preserves existing skills
@@ -89,7 +79,7 @@ confirmation:
 The installer prints the links it creates. If a client is already open, restart
 it before checking for the skill.
 
-## 4. Validate the hub
+## 3. Validate the hub
 
 Run:
 
@@ -97,17 +87,15 @@ Run:
 python3 scripts/validate.py
 ```
 
-Resolve every error. The unconfigured-owner warning disappears after
-**Who the user is** no longer contains the placeholder.
+Resolve every error.
 
-## 5. Open the example
+## 4. Open the example
 
 Open `index.html` in a browser, then open the included example blueprint.
 
 Setup is complete when:
 
 - `origin` points to your private repository and you can push;
-- **Who the user is** describes you;
 - the installed skill links resolve to this repository;
-- validation passes without the unconfigured-owner warning; and
+- validation passes; and
 - the example opens with its styling applied.
