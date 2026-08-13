@@ -1,98 +1,109 @@
-# Learning Hub
+# AI Learning Hub
 
-A personal wiki of what you have learned, built out of your conversations with
-an AI.
+Have you ever understood something during a conversation with an AI agent, only
+to realize a few weeks later that you could no longer explain it?
 
-You are working with an AI and something comes up that you do not really
-understand. You ask. It explains, it clicks, you move on. Then the chat scrolls
-away, and a month later you are asking the same question again.
+I built AI Learning Hub because this kept happening to me. Useful explanations
+were buried in old chats, and the understanding faded with them.
 
-This is where that explanation goes instead: one **blueprint** per topic,
-written for you, that you keep and keep editing.
-
-## The loop
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/loop-dark.png">
-  <img src="docs/loop.png" alt="A conversation becomes a blueprint, the blueprint joins your hub, and you come back to re-read it, edit it and be quizzed on it">
-</picture>
-
-A blueprint keeps changing. Come back and correct what you got wrong, add a
-better example when you find one, and link it to whatever you learn next.
-
-## What a blueprint looks like
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/blueprint-dark.png">
-  <img src="docs/blueprint.png" alt="A blueprint: a claim as its title, a color legend, a table of contents, and a section that opens in plain English and ends with a Remember box">
-</picture>
-
-Plain English first, then examples, then the precise terms. Diagrams when
-something is easier to show than to explain.
-
-A blueprint is as long as its topic deserves, and it is one self-contained HTML
-file, so it opens anywhere, offline, years from now.
-
-## It grows into something
+The hub turns what you learn into **blueprints**: standalone HTML lessons about
+one topic. Each blueprint starts with intuition, then builds toward examples and
+precise terms. If something is unclear, or your understanding changes, you can
+revise it with your agent.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/index-dark.png">
-  <img src="docs/index.png" alt="The index, listing blueprints with their tags and which are due for a quiz">
+  <img src="docs/index.png" alt="The learning hub index with blueprints, tags, update dates, and quiz status">
 </picture>
 
-<p align="center"><sub>The index after a few months. It is generated from your
-blueprints, and it ships with one.</sub></p>
+<p align="center"><sub>Your blueprints appear in one index and link to related topics.</sub></p>
 
-Blueprints link to the ones they build on, and those links do the organizing.
-Clusters form where you kept linking, so the shape of what you know grows out of
-what you actually wrote. The index reads it all back: every blueprint, its tags,
-when you last touched it, and which ones are due for a quiz.
+## How it works
 
-This is the idea behind Karpathy's **LLM wiki**: do the reasoning once, when you
-write the page, instead of redoing it in every chat.
+<p align="center"><strong>Learn with an agent &rarr; Save a blueprint &rarr; Revisit it &rarr; Refine or quiz</strong></p>
 
-## Start
+The blueprint is the part worth keeping. It is a normal HTML file that opens in
+a browser, works offline, and remains yours. The index is rebuilt as the hub
+grows, so you can see what you have learned and what you may want to revisit.
+
+The repository gives your coding agent the instructions and tools to maintain
+that structure. You focus on learning. The agent handles the page format,
+cross-links, index, and filing.
+
+## Start your own hub
+
+1. [Create a repository from this template](https://github.com/ArturGR3/ai-learning-hub/generate).
+2. Give it a name and choose **Private**. Blueprints may contain personal notes
+   or details from work conversations.
+3. Clone your new repository and open it with your coding agent.
+4. Give the agent this prompt:
+
+   ```text
+   Read AGENTS.md and help me set up this learning hub for my use. Explain the
+   setup before changing anything. Then help me personalize how the hub teaches
+   me and open the included example.
+   ```
+
+Your agent can handle the setup and explain each step. If you prefer to clone it
+yourself:
 
 ```bash
-git clone https://github.com/ArturGR3/ai-learning-hub my-learning-hub
+git clone YOUR_PRIVATE_REPOSITORY_URL my-learning-hub
 cd my-learning-hub
-open index.html
 ```
 
-`topics/example-blueprint.html` is a real lesson and an example of every
-convention.
+Open `index.html` in a browser to see the hub. The included blueprint is both a
+real lesson and an example of the format.
 
-## Write your first one
+## Create your first blueprint
 
-Install the `/learn` skill once:
+Start a conversation with your agent from inside the hub. You can learn a new
+topic:
+
+```text
+Teach me how DNS caching works. Start with the intuition and check that I
+understand it. Once it is clear, help me save what I learned as a blueprint.
+```
+
+Or capture something that already came up during your work:
+
+```text
+Review what I learned in this conversation. Help me check my understanding,
+then save the useful parts as a blueprint in this hub.
+```
+
+The agent reads the repository's conventions, creates the page, validates it,
+adds it to the index, and records it in Git. Later, ask the agent to clarify a
+weak section, add a better example, connect a related topic, or quiz you.
+
+## Use it with your coding agent
+
+The core workflow is not tied to one agent. It lives in `AGENTS.md`, so an agent
+working inside the hub can read the same teaching and filing instructions.
+
+Capturing a lesson while working in another repository needs a global skill
+that can locate your hub. The included installer currently sets up `/learn` for
+Claude Code:
 
 ```bash
 ./scripts/install-skill.sh
 ```
 
-It creates one symlink, `~/.claude/skills/learn` pointing into this repo, and
-tells you so before it does. Then type `/learn` in any Claude Code session, in
-any project: it teaches you the topic, turns it into a blueprint, files it here,
-and offers to quiz you.
+Codex and OpenCode can work inside the hub today. Their global, cross-project
+shortcuts are not documented yet.
 
-Writing the HTML yourself works the same way. File it with:
+## Read it elsewhere
 
-```bash
-./scripts/file-blueprint.sh topics/<name>.html "topic - one line"
-```
+Opening `index.html` locally is the simplest and most private setup. If you want
+the hub on your phone, the [deployment guide](deploy/README.md) compares a
+private Pi with Tailscale setup and Cloudflare Pages.
 
-It validates the page, rebuilds `index.html`, appends `log.md`, commits, and
-pushes if you have a remote.
+## Background and help
 
-## Make it yours
+This project is a learning-focused take on Andrej Karpathy's
+[LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+idea: let an agent maintain a persistent body of knowledge instead of rebuilding
+it from each conversation.
 
-Rewrite the top section of `AGENTS.md`: who you are and how you learn. That is
-what an agent reads before teaching you anything. Everything below it works for
-anyone.
-
-Then delete the example and write your first blueprint.
-
----
-
-To read your hub on your phone, `deploy/` covers the two ways. MIT licensed; the
-blueprints you write are yours.
+If something is unclear or broken, [open an issue](https://github.com/ArturGR3/ai-learning-hub/issues).
+The project is [MIT licensed](LICENSE), and the blueprints you create are yours.
