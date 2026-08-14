@@ -40,8 +40,9 @@ def main() -> int:
         repository = Repository(args.repo)
         application = ReviewApplication(repository)
         server = ReviewHTTPServer(("127.0.0.1", args.port), application, quiet=args.quiet)
-    except RepositoryError as exc:
-        print(f"Could not start Learning Hub review: {exc.message}", file=sys.stderr)
+    except (OSError, RepositoryError) as exc:
+        message = exc.message if isinstance(exc, RepositoryError) else str(exc)
+        print(f"Could not start Learning Hub review: {message}", file=sys.stderr)
         return 2
 
     port = server.server_address[1]

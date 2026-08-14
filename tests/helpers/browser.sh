@@ -95,7 +95,7 @@ browser_capture_diagnostics() {
 
 browser_assert_clean_diagnostics() {
   browser_capture_diagnostics
-  if rg -i "uncaught|typeerror|referenceerror|syntaxerror|failed to load" "$BROWSER_ARTIFACTS_DIR/console.txt"; then
+  if rg -i "uncaught|typeerror|referenceerror|syntaxerror|failed to load|net::err_|blocked by (cors|content security policy)|refused to (load|apply|execute|connect)|violates the following content security policy" "$BROWSER_ARTIFACTS_DIR/console.txt"; then
     echo "unexpected browser console error" >&2
     return 1
   fi

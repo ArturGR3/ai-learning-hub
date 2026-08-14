@@ -58,20 +58,77 @@ class SessionStore:
         with self._lock:
             return deepcopy(self._read_unlocked(sid))
 
-    def find_latest(self, path: str) -> dict[str, Any] | None:
+    def find_latest(
+        self,
+        path: str,
+        *,
+        base_head: str | None = None,
+        base_branch: str | None = None,
+        source_hash: str | None = None,
+    ) -> dict[str, Any] | None:
         with self._lock:
-            latest = self._find_latest_unlocked(path)
+            latest = self._find_latest_unlocked(
+                path,
+                base_head=base_head,
+                base_branch=base_branch,
+                source_hash=source_hash,
+            )
             return deepcopy(latest) if latest else None
 
-    def _find_latest_unlocked(self, path: str) -> dict[str, Any] | None:
+    def find_pending_push(self, path: str, *, base_branch: str | None) -> dict[str, Any] | None:
+        """Return the latest finalized review whose push still needs attention."""
+        with self._lock:
+            matches: list[dict[str, Any]] = []
+            for file in self.root.glob("*.json"):
+                try:
+                    data = json.loads(file.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                finalized = data.get("finalized") if isinstance(data, dict) else None
+                if (
+                    data.get("schemaVersion") == self.VERSION
+                    and data.get("path") == path
+                    and data.get("baseBranch") == base_branch
+                    and isinstance(finalized, dict)
+                    and finalized.get("pushError")
+                    and finalized.get("commit")
+                ):
+                    matches.append(data)
+            if not matches:
+                return None
+            latest = max(
+                matches,
+                key=lambda item: (
+                    item.get("updatedAt", ""),
+                    int(item.get("revision", 0)),
+                    item.get("id", ""),
+                ),
+            )
+            return deepcopy(latest)
+
+    def _find_latest_unlocked(
+        self,
+        path: str,
+        *,
+        base_head: str | None = None,
+        base_branch: str | None = None,
+        source_hash: str | None = None,
+    ) -> dict[str, Any] | None:
         matches: list[dict[str, Any]] = []
         for file in self.root.glob("*.json"):
             try:
                 data = json.loads(file.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            if data.get("schemaVersion") == self.VERSION and data.get("path") == path:
-                matches.append(data)
+            if data.get("schemaVersion") != self.VERSION or data.get("path") != path:
+                continue
+            if base_head is not None and (
+                data.get("baseHead") != base_head or data.get("baseBranch") != base_branch
+            ):
+                continue
+            if source_hash is not None and data.get("sourceHash") != source_hash:
+                continue
+            matches.append(data)
         if not matches:
             return None
         return max(
@@ -130,11 +187,15 @@ class SessionStore:
     ) -> dict[str, Any]:
         """Return the current review or create one in the same lock scope."""
         with self._lock:
-            current = self._find_latest_unlocked(path)
+            current = self._find_latest_unlocked(
+                path,
+                base_head=base_head,
+                base_branch=base_branch,
+                source_hash=source_hash,
+            )
             if (
                 current
                 and not current.get("finalized")
-                and current.get("sourceHash") == source_hash
             ):
                 return deepcopy(current)
             return self.create(

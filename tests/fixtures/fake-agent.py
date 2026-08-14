@@ -46,7 +46,7 @@ def apply_replacements(blueprint: str, replacements: list[dict[str, str]]) -> st
     return candidate
 
 
-def mapping_for(comment: dict[str, Any]) -> dict[str, Any]:
+def mapping_for(comment: dict[str, Any], candidate: str) -> dict[str, Any]:
     anchor = comment.get("anchor") if isinstance(comment.get("anchor"), dict) else {}
     kind = anchor.get("kind", "text")
     target: dict[str, Any] = {"kind": kind}
@@ -55,10 +55,40 @@ def mapping_for(comment: dict[str, Any]) -> dict[str, Any]:
             target[key] = anchor[key]
     if "exact" not in target and anchor.get("quote"):
         target["exact"] = anchor["quote"]
+    if kind == "text" and anchor.get("sectionId") == "s02":
+        exact = "the estimate you are holding is one possible number, not a fixed truth"
+        target = {
+            "kind": "text",
+            "sectionId": "s02",
+            "quote": exact,
+            "selector": {"blockKey": "s02/p/1", "exact": exact},
+        }
+    elif kind == "diagram" and anchor.get("sectionId") == "s03":
+        section = re.search(r'<section id="s03">(.*?)</section>', candidate, flags=re.DOTALL)
+        caption = re.search(r'<div class="caption">(.*?)</div>', section.group(1), flags=re.DOTALL) if section else None
+        exact = caption.group(1).strip() if caption else ""
+        target = {
+            "kind": "diagram",
+            "sectionId": "s03",
+            "diagramId": "s03/diagram/1",
+            "quote": exact,
+            "selector": {"blockKey": "s03/diagram/1"},
+        }
+    targets = [target] if target else []
+    if kind == "text" and anchor.get("sectionId") == "s02":
+        heading = "Your answer is a random variable, not a number"
+        targets.append(
+            {
+                "kind": "text",
+                "sectionId": "s02",
+                "quote": heading,
+                "selector": {"blockKey": "s02/h2/1", "exact": heading},
+            }
+        )
     return {
         "commentId": comment_id(comment),
         "status": "mapped" if target else "unmapped",
-        "targets": [target] if target else [],
+        "targets": targets,
     }
 
 
@@ -104,7 +134,7 @@ def main() -> int:
     active_comments = [
         comment for comment in comments if decision_value(decisions, comment_id(comment)) != "yes"
     ]
-    mappings = [mapping_for(comment) for comment in active_comments]
+    mappings = [mapping_for(comment, candidate) for comment in active_comments]
     result = {"candidate": candidate, "comments": mappings, "summary": stage["summary"]}
     blueprint_path.write_text(candidate, encoding="utf-8")
     result_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html.parser import HTMLParser
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,166 @@ from .repository import MAX_BLUEPRINT_BYTES, Repository, RepositoryError, _run
 
 
 MAX_RESULT_BYTES = 2 * 1024 * 1024
+
+_VOID_ELEMENTS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
+
+
+class _HtmlNode:
+    __slots__ = ("attrs", "children", "parent", "tag")
+
+    def __init__(self, tag: str, attrs: list[tuple[str, str | None]], parent: _HtmlNode | None):
+        self.tag = tag
+        self.attrs = dict(attrs)
+        self.parent = parent
+        self.children: list[_HtmlNode | str] = []
+
+
+class _CandidateParser(HTMLParser):
+    """Build the small DOM subset needed to verify review target anchors."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.root = _HtmlNode("document", [], None)
+        self._stack = [self.root]
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        node = _HtmlNode(tag.lower(), attrs, self._stack[-1])
+        self._stack[-1].children.append(node)
+        if node.tag not in _VOID_ELEMENTS:
+            self._stack.append(node)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        node = _HtmlNode(tag.lower(), attrs, self._stack[-1])
+        self._stack[-1].children.append(node)
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        for index in range(len(self._stack) - 1, 0, -1):
+            if self._stack[index].tag == normalized:
+                del self._stack[index:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        self._stack[-1].children.append(data)
+
+
+class _CandidateIndex:
+    """Mirror the iframe's deterministic block keys for server-side checks."""
+
+    def __init__(self, candidate: str):
+        parser = _CandidateParser()
+        parser.feed(candidate)
+        parser.close()
+        self.blocks: dict[str, dict[str, str]] = {}
+        self.ids: dict[str, dict[str, str]] = {}
+        counts: dict[str, int] = {}
+        for node in self._walk(parser.root):
+            identifier = node.attrs.get("id")
+            if identifier and identifier not in self.ids:
+                self.ids[identifier] = {
+                    "tag": node.tag,
+                    "text": self._text(node),
+                }
+            if not self._is_indexed(node) or self._inside_review_ui(node):
+                continue
+            section_id = self._section_id(node)
+            kind = self._block_kind(node)
+            stem = f"{section_id}/{kind}"
+            counts[stem] = counts.get(stem, 0) + 1
+            key = f"{stem}/{counts[stem]}"
+            self.blocks[key] = {
+                "kind": kind,
+                "sectionId": section_id,
+                "text": self._text(node),
+            }
+
+    @classmethod
+    def _walk(cls, node: _HtmlNode):
+        pending = [child for child in reversed(node.children) if isinstance(child, _HtmlNode)]
+        while pending:
+            current = pending.pop()
+            yield current
+            pending.extend(child for child in reversed(current.children) if isinstance(child, _HtmlNode))
+
+    @classmethod
+    def _text(cls, node: _HtmlNode) -> str:
+        parts: list[str] = []
+        pending: list[_HtmlNode | str] = [node]
+        while pending:
+            item = pending.pop()
+            if isinstance(item, str):
+                parts.append(item)
+                continue
+            if item.tag in {"script", "style"} or "data-lh-review-ui" in item.attrs:
+                continue
+            pending.extend(reversed(item.children))
+        return "".join(parts)
+
+    @staticmethod
+    def _classes(node: _HtmlNode) -> set[str]:
+        return set((node.attrs.get("class") or "").split())
+
+    @classmethod
+    def _is_indexed(cls, node: _HtmlNode) -> bool:
+        classes = cls._classes(node)
+        if node.tag in {"header", "footer"} or classes.intersection(
+            {"legend", "toc", "diagram", "formula", "where", "key", "cross-refs"}
+        ):
+            return True
+        if node.tag not in {"h2", "h3", "p", "li"}:
+            return False
+        parent = node.parent
+        while parent is not None:
+            if parent.tag == "section":
+                return True
+            parent = parent.parent
+        return False
+
+    @classmethod
+    def _block_kind(cls, node: _HtmlNode) -> str:
+        classes = cls._classes(node)
+        if "diagram" in classes:
+            return "diagram"
+        if "formula" in classes:
+            return "formula"
+        if "key" in classes:
+            return "key"
+        return node.tag
+
+    @staticmethod
+    def _section_id(node: _HtmlNode) -> str:
+        parent = node.parent
+        while parent is not None:
+            if parent.tag == "section" and parent.attrs.get("id"):
+                return str(parent.attrs["id"])
+            parent = parent.parent
+        return "document"
+
+    @staticmethod
+    def _inside_review_ui(node: _HtmlNode) -> bool:
+        current: _HtmlNode | None = node
+        while current is not None:
+            if "data-lh-review-ui" in current.attrs:
+                return True
+            current = current.parent
+        return False
 
 
 class AgentError(Exception):
@@ -151,13 +312,33 @@ class AgentRunner:
 
     @staticmethod
     def _context(session: dict[str, Any], operation: str) -> dict[str, Any]:
+        comments = [
+            comment
+            for comment in session.get("comments", [])
+            if isinstance(comment, dict) and not AgentRunner._comment_is_closed(comment)
+        ]
+        visible_ids = {
+            str(comment["id"])
+            for comment in comments
+            if comment.get("id") is not None and str(comment.get("id"))
+        }
+        stored_decisions = session.get("decisions", {})
+        decisions = (
+            {
+                identifier: decision
+                for identifier, decision in stored_decisions.items()
+                if str(identifier) in visible_ids
+            }
+            if isinstance(stored_decisions, dict)
+            else {}
+        )
         return {
             "operation": operation,
             "path": session["path"],
             "original": session["original"],
             "candidate": session.get("candidate"),
-            "comments": session.get("comments", []),
-            "decisions": session.get("decisions", {}),
+            "comments": comments,
+            "decisions": decisions,
             "rules": {
                 "networkResearchAllowed": True,
                 "externalWritesAllowed": False,
@@ -381,6 +562,265 @@ class AgentRunner:
             # the caller. The timeout keeps server shutdown bounded.
             pass
 
+    @staticmethod
+    def _comment_is_closed(comment: dict[str, Any]) -> bool:
+        return bool(comment.get("closed")) or comment.get("status") == "closed"
+
+    @classmethod
+    def _active_comment_ids(cls, session: dict[str, Any], operation: str) -> list[str]:
+        active: list[str] = []
+        for comment in session.get("comments", []):
+            if not isinstance(comment, dict):
+                continue
+            if cls._comment_is_closed(comment):
+                continue
+            if operation != "revise" and comment.get("status") != "queued" and comment.get("decision") not in {
+                "no",
+                "maybe",
+            }:
+                continue
+            identifier = comment.get("id")
+            if identifier is None or not str(identifier):
+                raise AgentError("invalid_agent_result", "An active comment has no identifier")
+            active.append(str(identifier))
+        if len(active) != len(set(active)):
+            raise AgentError("invalid_agent_result", "Active comment identifiers are not unique")
+        return active
+
+    @classmethod
+    def _accepted_comment_ids(cls, session: dict[str, Any], operation: str) -> list[str]:
+        if operation != "reconcile":
+            return []
+        accepted: list[str] = []
+        for comment in session.get("comments", []):
+            if (
+                not isinstance(comment, dict)
+                or cls._comment_is_closed(comment)
+                or comment.get("decision") != "yes"
+            ):
+                continue
+            identifier = comment.get("id")
+            if identifier is None or not str(identifier):
+                raise AgentError("invalid_agent_result", "An accepted comment has no identifier")
+            accepted.append(str(identifier))
+        if len(accepted) != len(set(accepted)):
+            raise AgentError("invalid_agent_result", "Accepted comment identifiers are not unique")
+        return accepted
+
+    @staticmethod
+    def _validate_target_shape(target: Any, comment_id: str) -> dict[str, Any]:
+        if not isinstance(target, dict):
+            raise AgentError("invalid_agent_result", f"Mapping target for comment {comment_id} must be an object")
+        kind = target.get("kind")
+        if kind not in {"text", "diagram"}:
+            raise AgentError(
+                "invalid_agent_result",
+                f"Mapping target for comment {comment_id} must target text or a diagram",
+            )
+        for name in ("sectionId", "diagramId", "quote", "exact", "blockKey"):
+            if name in target and (not isinstance(target[name], str) or not target[name]):
+                raise AgentError(
+                    "invalid_agent_result",
+                    f"Mapping target field {name} for comment {comment_id} must be a non-empty string",
+                )
+        selector = target.get("selector", {})
+        if not isinstance(selector, dict):
+            raise AgentError("invalid_agent_result", f"Mapping selector for comment {comment_id} must be an object")
+        target = dict(target)
+        selector = dict(selector)
+        if target.get("blockKey") and not selector.get("blockKey"):
+            selector["blockKey"] = target["blockKey"]
+        if selector:
+            target["selector"] = selector
+        for name in ("blockKey", "exact"):
+            if name in selector and (not isinstance(selector[name], str) or not selector[name]):
+                raise AgentError(
+                    "invalid_agent_result",
+                    f"Mapping selector field {name} for comment {comment_id} must be a non-empty string",
+                )
+        for name in ("prefix", "suffix"):
+            if name in selector and not isinstance(selector[name], str):
+                raise AgentError(
+                    "invalid_agent_result",
+                    f"Mapping selector field {name} for comment {comment_id} must be a string",
+                )
+        for name in ("start", "end"):
+            if name in selector and (
+                not isinstance(selector[name], int) or isinstance(selector[name], bool) or selector[name] < 0
+            ):
+                raise AgentError(
+                    "invalid_agent_result",
+                    f"Mapping selector field {name} for comment {comment_id} must be a non-negative integer",
+                )
+        if ("start" in selector) != ("end" in selector) or (
+            "start" in selector and selector["end"] < selector["start"]
+        ):
+            raise AgentError("invalid_agent_result", f"Mapping selector offsets for comment {comment_id} are invalid")
+        evidence = selector.get("exact") or target.get("exact") or target.get("quote")
+        if evidence:
+            target.setdefault("quote", evidence)
+            if kind == "text":
+                selector.setdefault("exact", evidence)
+                target["selector"] = selector
+        return target
+
+    @staticmethod
+    def _target_exists(index: _CandidateIndex, target: dict[str, Any]) -> bool:
+        selector = target.get("selector", {})
+        selector_key = selector.get("blockKey")
+        diagram_id = target.get("diagramId")
+        if selector_key and diagram_id and selector_key != diagram_id:
+            return False
+        block_key = selector_key or diagram_id
+        section_id = target.get("sectionId")
+        block = index.blocks.get(block_key) if block_key else None
+        if block_key and block is None:
+            return False
+        if section_id and section_id != "document":
+            section = index.ids.get(section_id)
+            if section is None or section["tag"] != "section":
+                return False
+            if block is not None and block["sectionId"] != section_id:
+                return False
+        elif section_id == "document" and block is not None and block["sectionId"] != "document":
+            return False
+
+        if target["kind"] == "diagram":
+            if block is None or block["kind"] != "diagram":
+                return False
+        elif block is not None and block["kind"] == "diagram":
+            return False
+
+        if block is not None:
+            text = block["text"]
+        elif section_id and section_id != "document":
+            text = index.ids[section_id]["text"]
+        else:
+            return False
+
+        evidence = []
+        for value in (target.get("quote"), target.get("exact"), selector.get("exact")):
+            if value:
+                evidence.append(value)
+        if not evidence or any(value not in text for value in evidence):
+            return False
+
+        exact = selector.get("exact") or target.get("exact") or target.get("quote")
+        if "start" in selector:
+            start = selector["start"]
+            end = selector["end"]
+            if end > len(text) or text[start:end] != exact:
+                return False
+        prefix = selector.get("prefix")
+        suffix = selector.get("suffix")
+        if prefix is not None or suffix is not None:
+            position = -1
+            while True:
+                position = text.find(exact, position + 1)
+                if position < 0:
+                    return False
+                before = text[:position]
+                after = text[position + len(exact) :]
+                if (prefix is None or before.endswith(prefix)) and (suffix is None or after.startswith(suffix)):
+                    break
+        return True
+
+    @classmethod
+    def _validate_comment_mappings(
+        cls,
+        session: dict[str, Any],
+        operation: str,
+        candidate: str,
+        comments: Any,
+    ) -> list[dict[str, Any]]:
+        if not isinstance(comments, list):
+            raise AgentError("invalid_agent_result", "Result comments must be an array")
+        active_ids = cls._active_comment_ids(session, operation)
+        accepted_ids = cls._accepted_comment_ids(session, operation)
+        accepted = set(accepted_ids)
+        allowed = set(active_ids) | accepted
+        mappings: dict[str, dict[str, Any]] = {}
+        for mapping in comments:
+            if not isinstance(mapping, dict):
+                raise AgentError("invalid_agent_result", "Every comment mapping must be an object")
+            raw_identifier = mapping.get("commentId") or mapping.get("id")
+            if raw_identifier is None or not str(raw_identifier):
+                raise AgentError("invalid_agent_result", "Every comment mapping must include a commentId")
+            identifier = str(raw_identifier)
+            if identifier not in allowed:
+                raise AgentError("invalid_agent_result", f"Agent mapped an inactive or unknown comment: {identifier}")
+            if identifier in mappings:
+                raise AgentError("invalid_agent_result", f"Agent mapped comment more than once: {identifier}")
+            status = mapping.get("status")
+            if status not in {"mapped", "unmapped"}:
+                raise AgentError(
+                    "invalid_agent_result",
+                    f"Mapping status for comment {identifier} must be mapped or unmapped",
+                )
+            targets = mapping.get("targets")
+            if not isinstance(targets, list):
+                raise AgentError("invalid_agent_result", f"Mapping targets for comment {identifier} must be an array")
+            if status == "unmapped":
+                if targets:
+                    raise AgentError(
+                        "invalid_agent_result",
+                        f"Unmapped comment {identifier} must not include targets",
+                    )
+                mappings[identifier] = {"commentId": identifier, "status": "unmapped", "targets": []}
+                continue
+            if not targets:
+                raise AgentError(
+                    "invalid_agent_result",
+                    f"Mapped comment {identifier} must include one or more targets",
+                )
+            mappings[identifier] = {
+                "commentId": identifier,
+                "status": "mapped",
+                "targets": [cls._validate_target_shape(target, identifier) for target in targets],
+            }
+
+        missing = [identifier for identifier in active_ids if identifier not in mappings]
+        if missing:
+            raise AgentError(
+                "invalid_agent_result",
+                "Agent result is missing mappings for active comments: " + ", ".join(missing),
+            )
+
+        index = _CandidateIndex(candidate)
+        accepted_comments = {
+            str(comment.get("id")): comment
+            for comment in session.get("comments", [])
+            if isinstance(comment, dict) and str(comment.get("id")) in accepted
+        }
+        for identifier in accepted_ids:
+            if identifier in mappings:
+                continue
+            comment = accepted_comments[identifier]
+            stored_targets = comment.get("candidateTargets")
+            if not isinstance(stored_targets, list) or not stored_targets:
+                stored_anchor = comment.get("candidateAnchor")
+                stored_targets = [stored_anchor] if isinstance(stored_anchor, dict) else []
+            if not comment.get("mapped") or not stored_targets:
+                mappings[identifier] = {"commentId": identifier, "status": "unmapped", "targets": []}
+                continue
+            try:
+                targets = [cls._validate_target_shape(target, identifier) for target in stored_targets]
+            except AgentError:
+                mappings[identifier] = {"commentId": identifier, "status": "unmapped", "targets": []}
+            else:
+                mappings[identifier] = {"commentId": identifier, "status": "mapped", "targets": targets}
+
+        validated: list[dict[str, Any]] = []
+        for identifier in active_ids + accepted_ids:
+            mapping = mappings[identifier]
+            if mapping["status"] == "mapped" and not all(
+                cls._target_exists(index, target) for target in mapping["targets"]
+            ):
+                validated.append({"commentId": identifier, "status": "unmapped", "targets": []})
+            else:
+                validated.append(mapping)
+        return validated
+
     def _validate_result(
         self,
         root: Path,
@@ -426,31 +866,46 @@ class AgentRunner:
             raise AgentError("invalid_agent_result", "Agent result must be a JSON object")
         candidate = result.get("candidate")
         try:
-            disk_candidate = blueprint.read_text(encoding="utf-8")
+            disk_bytes = blueprint.read_bytes()
+            disk_candidate = disk_bytes.decode("utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             raise AgentError("invalid_agent_result", "Candidate is not readable UTF-8 HTML") from exc
         baseline = session.get("candidate") or session["original"]
-        if candidate is None and disk_candidate != baseline:
+        disk_changed = disk_bytes != baseline.encode("utf-8")
+        candidate_bytes: bytes | None = None
+        if isinstance(candidate, str):
+            try:
+                candidate_bytes = candidate.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise AgentError("invalid_agent_result", "Candidate is not valid UTF-8 text") from exc
+        if candidate is not None and disk_changed:
+            if candidate_bytes != disk_bytes:
+                raise AgentError(
+                    "invalid_agent_result",
+                    "Candidate in .review/result.json does not exactly match the edited blueprint file",
+                )
+        if candidate is None and disk_changed:
             candidate = disk_candidate
+            candidate_bytes = disk_bytes
         if not isinstance(candidate, str) or not candidate:
             raise AgentError("invalid_agent_result", "Agent result must include a non-empty candidate")
-        if len(candidate.encode("utf-8")) > MAX_BLUEPRINT_BYTES:
+        if candidate_bytes is None:
+            candidate_bytes = candidate.encode("utf-8")
+        if len(candidate_bytes) > MAX_BLUEPRINT_BYTES:
             raise AgentError("invalid_agent_result", "Candidate exceeds the 2 MiB limit")
         if "<html" not in candidate.lower() or "</html>" not in candidate.lower():
             raise AgentError("invalid_agent_result", "Candidate must be a complete HTML document")
 
-        blueprint.write_text(candidate, encoding="utf-8")
+        blueprint.write_bytes(candidate_bytes)
         try:
             _run(["python3", "scripts/validate.py"], cwd=root)
         except RepositoryError as exc:
             raise AgentError("invalid_agent_result", f"Candidate validation failed: {exc.message}") from exc
 
-        comments = result.get("comments", [])
-        if operation == "revise" and not session.get("rounds"):
-            if not isinstance(comments, list):
-                raise AgentError("invalid_agent_result", "Initial result comments must be an array")
-        elif comments is None:
-            comments = []
-        if not isinstance(comments, list):
-            raise AgentError("invalid_agent_result", "Result comments must be an array")
+        comments = self._validate_comment_mappings(
+            session,
+            operation,
+            candidate,
+            result.get("comments", []),
+        )
         return {"candidate": candidate, "comments": comments, "summary": str(result.get("summary", ""))[:1000]}

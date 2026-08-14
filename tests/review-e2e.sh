@@ -97,7 +97,7 @@ browser_fill_testid "comment-editor" "Clarify that this is one possible estimate
 browser_do "document.querySelector('[data-testid=\"comment-editor\"]').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', metaKey:true, bubbles:true}))"
 browser_wait_js "document.querySelectorAll('[data-testid=\"comment-card\"]').length === 1" "persisted text comment"
 
-browser_do "const frame = document.querySelector('#lh-blueprint-frame'); const doc = frame.contentDocument; doc.getSelection().removeAllRanges(); const diagramButton = doc.querySelector('[data-testid=\"diagram-comment\"]'); const diagram = doc.querySelector('#s03 .diagram'); (diagramButton || diagram).click()"
+browser_do "const frame = document.querySelector('#lh-blueprint-frame'); const doc = frame.contentDocument; doc.getSelection().removeAllRanges(); const diagram = doc.querySelector('#s03 .diagram'); const diagramButton = diagram.querySelector('[data-testid=\"diagram-comment\"]'); (diagramButton || diagram).click()"
 browser_wait_js "document.querySelector('[data-testid=\"comment-editor\"]')" "diagram composer"
 browser_fill_testid "comment-editor" "Make the square-root trade-off explicit in this diagram."
 browser_do "document.querySelector('[data-testid=\"comment-editor\"]').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', ctrlKey:true, bubbles:true}))"
@@ -111,6 +111,14 @@ browser_axi resize 900 900 >/dev/null
 browser_do "const root = document.documentElement; if (root.scrollWidth > root.clientWidth) throw new Error('900px horizontal overflow')"
 browser_screenshot "02a-off-canvas"
 browser_axi resize 390 844 >/dev/null
+browser_do "const toggle = document.querySelector('[data-action=\"toggle-rail\"]'); toggle.focus(); toggle.click()"
+browser_wait_js "document.querySelector('#lh-review-rail').contains(document.activeElement) && document.querySelector('#lh-review-rail').getAttribute('role') === 'dialog'" "mobile modal focus"
+browser_do "const card = document.querySelector('[data-testid=\"comment-card\"]'); card.focus(); card.click()"
+browser_wait_js "document.querySelector('#lh-review-rail').contains(document.activeElement)" "mobile focus after rail render"
+browser_do "const active = document.activeElement; active.blur(); document.dispatchEvent(new KeyboardEvent('keydown', {key:'Tab', bubbles:true}))"
+browser_wait_js "document.querySelector('#lh-review-rail').contains(document.activeElement)" "mobile focus trap after lost focus"
+browser_do "document.querySelector('[data-action=\"close-rail\"]').click()"
+browser_wait_js "document.activeElement === document.querySelector('[data-action=\"toggle-rail\"]')" "mobile focus restoration"
 browser_do "document.querySelector('[data-action=\"toggle-rail\"]').click()"
 browser_do "const root = document.documentElement; if (root.scrollWidth > root.clientWidth) throw new Error('390px horizontal overflow')"
 browser_screenshot "02b-mobile-rail"
@@ -139,6 +147,11 @@ PY
 )"
 IFS=',' read -r TEXT_ID DIAGRAM_ID <<<"$COMMENT_IDS"
 [[ -n "$TEXT_ID" && -n "$DIAGRAM_ID" && "$TEXT_ID" != "$DIAGRAM_ID" ]] || fail "could not read comment IDs"
+browser_wait_js "document.querySelector('#lh-blueprint-frame').contentDocument.querySelectorAll('mark[data-comment-id=\"$TEXT_ID\"]').length === 2" "multi-target candidate highlights"
+browser_do "const frame = document.querySelector('#lh-blueprint-frame'); const doc = frame.contentDocument; const marks = Array.from(doc.querySelectorAll('mark[data-comment-id=\"$TEXT_ID\"]')); frame.contentWindow.__lhOriginalScrollIntoView = frame.contentWindow.Element.prototype.scrollIntoView; frame.contentWindow.Element.prototype.scrollIntoView = function () { doc.documentElement.dataset.lhScrolledTarget = String(marks.indexOf(this)); }; marks[1].click()"
+browser_wait_js "document.querySelector('[data-testid=\"comment-card\"][data-comment-id=\"$TEXT_ID\"]').classList.contains('is-active')" "second target activates its comment"
+browser_wait_js "document.querySelector('#lh-blueprint-frame').contentDocument.documentElement.dataset.lhScrolledTarget === '1'" "second target remains the navigation target"
+browser_do "const frame = document.querySelector('#lh-blueprint-frame'); frame.contentWindow.Element.prototype.scrollIntoView = frame.contentWindow.__lhOriginalScrollIntoView; delete frame.contentWindow.__lhOriginalScrollIntoView"
 
 browser_click_decision "$TEXT_ID" "yes"
 browser_wait_js "document.querySelector('[data-decision=\"$DIAGRAM_ID\"] input[value=\"maybe\"]')" "diagram decision"
@@ -188,8 +201,36 @@ assert records[1]["decisions"]
 assert records[2]["decisions"]
 PY
 
+# The interactive flow uses same-origin iframe access only for deterministic
+# DOM setup. Restart in the real opaque-origin sandbox and verify that the
+# bridge, local assets, fonts, and CSP work without that test-only permission.
+kill "$SERVER_PID" >/dev/null 2>&1 || true
+wait "$SERVER_PID" >/dev/null 2>&1 || true
+SERVER_PID=""
+unset LEARNING_HUB_TEST_SAME_ORIGIN
+python3 "$WORK_REPO/scripts/review-blueprint.py" --repo "$WORK_REPO" --port "$PORT" >>"$SERVER_LOG" 2>&1 &
+SERVER_PID=$!
+for _attempt in {1..80}; do
+  if curl -fsS "http://127.0.0.1:$PORT/" >/dev/null 2>&1; then
+    break
+  fi
+  if ! kill -0 "$SERVER_PID" >/dev/null 2>&1; then
+    fail "production-sandbox server exited during startup"
+  fi
+  sleep 0.25
+done
+curl -fsS "http://127.0.0.1:$PORT/" >/dev/null || fail "production-sandbox server did not become ready"
+curl -fsS -D "$BROWSER_ARTIFACTS_DIR/font-headers.txt" -o /dev/null \
+  "http://127.0.0.1:$PORT/assets/fonts/source-serif-pro-latin-400.woff2"
+rg -qi '^Access-Control-Allow-Origin: \*\r?$' "$BROWSER_ARTIFACTS_DIR/font-headers.txt" \
+  || fail "production font response is missing its sandbox CORS header"
+browser_open "http://localhost:$PORT/topics/example-blueprint.html"
+browser_wait_js "document.querySelector('[data-testid=\"review-root\"]') && document.querySelector('#lh-blueprint-frame').getAttribute('sandbox') === 'allow-scripts'" "production iframe sandbox"
+browser_wait_js "parseInt(document.querySelector('#lh-blueprint-frame').style.height, 10) > 480" "production iframe bridge"
 browser_do "const root = document.documentElement; if (root.scrollWidth > root.clientWidth) throw new Error('horizontal overflow: ' + root.scrollWidth + ' > ' + root.clientWidth)"
 browser_assert_clean_diagnostics || fail "browser diagnostics are not clean"
+rg -q 'source-serif-pro-latin-400\.woff2 \[200\]' "$BROWSER_ARTIFACTS_DIR/network.txt" \
+  || fail "production browser did not load the blueprint font"
 
 echo "review E2E passed"
 echo "artifacts: $BROWSER_ARTIFACTS_DIR"

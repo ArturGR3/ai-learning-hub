@@ -156,6 +156,9 @@ def summary_for_comment(comment: dict[str, Any], changes: list[dict[str, Any]]) 
     before = [text for item in matching for text in item.get("before", [])]
     after = [text for item in matching for text in item.get("after", [])]
     return {
+        # Complete-HTML agent results do not carry trustworthy edit-to-comment
+        # provenance. Present this honestly as a section-level comparison.
+        "scope": "section",
         "sectionId": section or matching[0].get("sectionId") or "document",
         "blockCount": sum(int(item.get("blockCount", 0)) for item in matching),
         "before": before[:8],

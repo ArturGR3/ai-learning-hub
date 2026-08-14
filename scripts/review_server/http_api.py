@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from copy import deepcopy
 import hashlib
+from html.parser import HTMLParser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -25,6 +27,82 @@ from .session_store import SessionStore, StoreError, now
 
 
 MAX_REQUEST_BYTES = 512 * 1024
+
+
+class _DocumentLocator(HTMLParser):
+    """Locate real document tags while ignoring comments and raw script text."""
+
+    def __init__(self, content: str):
+        super().__init__(convert_charrefs=False)
+        self.content = content
+        self._line_starts = [0]
+        self._line_starts.extend(match.end() for match in re.finditer(r"\n", content))
+        self.html_tag: tuple[int, int] | None = None
+        self.head_end: int | None = None
+        self.body_end: int | None = None
+        self.scripts: list[tuple[int, int]] = []
+        self._script_start: int | None = None
+        self.feed(content)
+        self.close()
+
+    def _absolute(self) -> int:
+        line, column = self.getpos()
+        return self._line_starts[line - 1] + column
+
+    def _start_span(self) -> tuple[int, int]:
+        start = self._absolute()
+        return start, start + len(self.get_starttag_text() or "")
+
+    def _end_span(self) -> tuple[int, int]:
+        start = self._absolute()
+        closing = self.content.find(">", start)
+        return start, len(self.content) if closing < 0 else closing + 1
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        normalized = tag.lower()
+        start, end = self._start_span()
+        if normalized == "html" and self.html_tag is None:
+            self.html_tag = (start, end)
+        elif normalized == "head" and self.head_end is None:
+            self.head_end = end
+        elif normalized == "script":
+            self._script_start = start
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() == "script":
+            self.scripts.append(self._start_span())
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        start, end = self._end_span()
+        if normalized == "script" and self._script_start is not None:
+            self.scripts.append((self._script_start, end))
+            self._script_start = None
+        elif normalized == "body" and self.body_end is None:
+            self.body_end = start
+
+
+def document_csp(port: int, nonce: str) -> str:
+    local = f"http://127.0.0.1:{port} http://localhost:{port}"
+    return (
+        "default-src 'none'; "
+        f"base-uri {local}; "
+        f"style-src 'unsafe-inline' {local}; "
+        f"font-src {local}; "
+        f"script-src 'nonce-{nonce}'; "
+        f"img-src data: {local}; "
+        "connect-src 'none'; "
+        "form-action 'none'; "
+        "frame-src 'none'; "
+        "child-src 'none'; "
+        "object-src 'none'; "
+        "media-src 'none'; "
+        "worker-src 'none'; "
+        "manifest-src 'none'; "
+        f"frame-ancestors {local}"
+    )
+
+
 _SESSION_ROUTE = re.compile(r"^/api/v1/sessions/([A-Za-z0-9]+)$")
 _DOCUMENT_ROUTE = re.compile(r"^/api/v1/sessions/([A-Za-z0-9]+)/document$")
 _COMMENTS_ROUTE = re.compile(r"^/api/v1/sessions/([A-Za-z0-9]+)/comments$")
@@ -49,19 +127,39 @@ class ReviewApplication:
 
     def __init__(self, repository: Repository):
         self.repository = repository
-        self.store = SessionStore(repository.git_dir)
-        self.store.recover_abandoned_jobs()
-        self.runner = AgentRunner(repository)
-        self.token = secrets.token_urlsafe(32)
-        self.test_same_origin = os.environ.get("LEARNING_HUB_TEST_SAME_ORIGIN") == "1"
-        self.jobs: dict[str, dict[str, Any]] = {}
-        self._jobs_lock = threading.RLock()
+        repository.acquire_server_lock()
+        try:
+            self.store = SessionStore(repository.git_dir)
+            self.store.recover_abandoned_jobs()
+            self.runner = AgentRunner(repository)
+            self.token = secrets.token_urlsafe(32)
+            self.test_same_origin = os.environ.get("LEARNING_HUB_TEST_SAME_ORIGIN") == "1"
+            self.jobs: dict[str, dict[str, Any]] = {}
+            self._jobs_lock = threading.RLock()
+        except Exception:
+            repository.release_server_lock()
+            raise
 
     def bootstrap(self, path: str) -> dict[str, Any]:
-        normalized, _text, _digest = self.repository.read_blueprint(path)
-        session = self.store.find_latest(normalized)
-        if session and (session.get("finalized") or not self.repository.source_is_current(session)):
-            session = None
+        base_head = self.repository.head()
+        base_branch = self.repository.branch()
+        normalized, _text, digest = self.repository.read_blueprint(path)
+        session = None
+        pending_push = self.store.find_pending_push(normalized, base_branch=base_branch)
+        if pending_push:
+            finalized = pending_push.get("finalized") or {}
+            commit = str(finalized.get("commit") or "")
+            if self.repository.head_contains(commit) and not self.repository.remote_contains(commit, base_branch):
+                session = pending_push
+        if session is None:
+            session = self.store.find_latest(
+                normalized,
+                base_head=base_head,
+                base_branch=base_branch,
+                source_hash=digest,
+            )
+            if session and session.get("finalized"):
+                session = None
         return {
             "path": normalized,
             "token": self.token,
@@ -70,11 +168,13 @@ class ReviewApplication:
         }
 
     def create_session(self, path: str) -> dict[str, Any]:
+        base_head = self.repository.head()
+        base_branch = self.repository.branch()
         normalized, original, digest = self.repository.read_blueprint(path)
         created = self.store.find_or_create(
             path=normalized,
-            base_head=self.repository.head(),
-            base_branch=self.repository.branch(),
+            base_head=base_head,
+            base_branch=base_branch,
             source_hash=digest,
             original=original,
         )
@@ -108,7 +208,7 @@ class ReviewApplication:
         pending = False
         all_resolved = bool(comments)
         for comment in comments:
-            if comment.get("closed") or comment.get("status") == "closed":
+            if self._comment_is_closed(comment):
                 continue
             decision = comment.get("decision")
             note = str(comment.get("note") or "").strip()
@@ -149,6 +249,10 @@ class ReviewApplication:
         raise ApiError("comment_not_found", "Comment not found", status=404)
 
     @staticmethod
+    def _comment_is_closed(comment: dict[str, Any]) -> bool:
+        return bool(comment.get("closed")) or comment.get("status") == "closed"
+
+    @staticmethod
     def _valid_anchor(value: Any) -> dict[str, Any]:
         if not isinstance(value, dict):
             raise ApiError("invalid_anchor", "Comment anchor must be an object")
@@ -158,10 +262,62 @@ class ReviewApplication:
         quote_text = value.get("quote", "")
         if not isinstance(quote_text, str) or len(quote_text) > 12000:
             raise ApiError("invalid_anchor", "Comment anchor quote is invalid")
+        selector = value.get("selector")
+        if selector is not None and not isinstance(selector, dict):
+            raise ApiError("invalid_anchor", "Comment anchor selector must be an object")
+        if kind == "text" and isinstance(selector, dict):
+            block_key = selector.get("blockKey")
+            end_block_key = selector.get("endBlockKey", block_key)
+            if selector.get("multiBlock") is True or (
+                isinstance(block_key, str)
+                and isinstance(end_block_key, str)
+                and block_key != end_block_key
+            ):
+                raise ApiError(
+                    "unsupported_selection",
+                    "Text selections must stay within one review block",
+                )
         encoded = json.dumps(value, ensure_ascii=False).encode("utf-8")
         if len(encoded) > 64 * 1024:
             raise ApiError("invalid_anchor", "Comment anchor is too large")
         return deepcopy(value)
+
+    @classmethod
+    def _candidate_mapping(
+        cls,
+        mapping: Any,
+        source_anchor: Any,
+    ) -> tuple[bool, dict[str, Any], list[dict[str, Any]]]:
+        """Validate an agent mapping without guessing a candidate location."""
+        source_kind = source_anchor.get("kind") if isinstance(source_anchor, dict) else "text"
+        unmapped_anchor = {
+            "kind": source_kind if source_kind in {"text", "diagram"} else "text",
+            "quote": "",
+            "mapped": False,
+            "unmapped": True,
+        }
+        if not isinstance(mapping, dict) or mapping.get("status") not in {"mapped", "unmapped"}:
+            return False, unmapped_anchor, []
+        if mapping["status"] == "unmapped":
+            return False, unmapped_anchor, []
+        targets = mapping.get("targets")
+        if not isinstance(targets, list) or not targets:
+            return False, unmapped_anchor, []
+        validated: list[dict[str, Any]] = []
+        try:
+            for target_value in targets:
+                target = cls._valid_anchor(target_value)
+                selector = target.get("selector")
+                block_key = selector.get("blockKey") if isinstance(selector, dict) else None
+                has_location = bool(block_key or target.get("diagramId") or target.get("sectionId"))
+                if not has_location:
+                    return False, unmapped_anchor, []
+                target["mapped"] = True
+                target.pop("unmapped", None)
+                validated.append(target)
+        except ApiError:
+            return False, unmapped_anchor, []
+        return True, deepcopy(validated[0]), validated
 
     @staticmethod
     def _valid_body(value: Any) -> str:
@@ -290,6 +446,8 @@ class ReviewApplication:
             if not session.get("candidate"):
                 raise ApiError("candidate_required", "There is no candidate to reconcile", status=409)
             for comment in session.get("comments", []):
+                if self._comment_is_closed(comment):
+                    continue
                 if comment.get("needsDecision") is True:
                     decision = comment.get("decision")
                     if decision not in {"yes", "no", "maybe"}:
@@ -297,7 +455,8 @@ class ReviewApplication:
                     if decision == "maybe" and not str(comment.get("note") or "").strip():
                         raise ApiError("feedback_required", "Maybe requires feedback", status=409)
             has_unresolved_comments = any(
-                item.get("status") == "queued" or item.get("decision") in {"no", "maybe"}
+                not self._comment_is_closed(item)
+                and (item.get("status") == "queued" or item.get("decision") in {"no", "maybe"})
                 for item in session.get("comments", [])
             )
             generations_stale = (
@@ -384,27 +543,34 @@ class ReviewApplication:
                     if isinstance(item, dict) and (item.get("commentId") or item.get("id"))
                 }
                 for comment in stored.get("comments", []):
+                    if self._comment_is_closed(comment):
+                        continue
                     cid = str(comment.get("id"))
                     was_active = operation == "revise" or comment.get("status") == "queued" or comment.get("decision") in {"no", "maybe"}
                     if not was_active:
+                        if operation == "reconcile" and comment.get("decision") == "yes":
+                            mapped, target, targets = self._candidate_mapping(
+                                mappings.get(cid),
+                                comment.get("originalAnchor") or comment.get("anchor"),
+                            )
+                            comment["candidateAnchor"] = target
+                            comment["candidateTargets"] = targets
+                            if mapped:
+                                comment["anchor"] = target
+                            comment["mapped"] = mapped
+                            comment["changed"] = mapped
                         comment["needsDecision"] = False
                         continue
-                    mapping = mappings.get(cid, {})
-                    status = str(mapping.get("status") or "mapped")
-                    targets = mapping.get("targets") if isinstance(mapping.get("targets"), list) else []
-                    target = deepcopy(targets[0]) if targets and isinstance(targets[0], dict) else deepcopy(comment.get("anchor") or {})
-                    target.setdefault("kind", (comment.get("anchor") or {}).get("kind", "text"))
-                    if "quote" not in target:
-                        target["quote"] = (
-                            target.get("exact")
-                            or (comment.get("anchor") or {}).get("quote")
-                            or ""
-                        )
-                    target["mapped"] = status != "unmapped"
+                    mapped, target, targets = self._candidate_mapping(
+                        mappings.get(cid),
+                        comment.get("originalAnchor") or comment.get("anchor"),
+                    )
                     comment["candidateAnchor"] = target
-                    comment["anchor"] = target
-                    comment["mapped"] = status != "unmapped"
-                    if operation == "reconcile" and comment.get("decision") == "no":
+                    comment["candidateTargets"] = targets
+                    if mapped:
+                        comment["anchor"] = target
+                    comment["mapped"] = mapped
+                    if operation == "reconcile" and comment.get("decision") == "no" and mapped:
                         comment["status"] = "closed"
                         comment["closed"] = True
                         comment["needsDecision"] = False
@@ -413,7 +579,7 @@ class ReviewApplication:
                         comment["decision"] = None
                         comment["note"] = ""
                         comment["needsDecision"] = True
-                    comment["changed"] = True
+                    comment["changed"] = mapped
                 stored.setdefault("rounds", []).append(
                     {
                         "id": SessionStore.new_id("r"),
@@ -512,17 +678,17 @@ class ReviewApplication:
         return payload
 
 
-def _bridge_script(view: str) -> str:
+def _bridge_script(view: str, nonce: str) -> str:
     """Return the fixed iframe annotation bridge. No document data is interpolated."""
-    return """<style id="lh-bridge-style">
-[data-lh-block-key]{scroll-margin-top:24px}.lh-review-mark{background:#fff4a8;color:inherit;border-bottom:1px solid #c8102e;padding:0}.lh-review-mark.is-active{border-bottom-width:2px}.diagram.lh-review-diagram{outline:2px solid #c8102e;outline-offset:3px;position:relative}.lh-diagram-review-button{position:absolute;z-index:8;top:8px;right:8px;min-width:44px;min-height:44px;border:1px solid #1a1a1a;background:#fdfdfb;color:#c8102e;font:600 10px 'JetBrains Mono',monospace;cursor:pointer}.lh-review-pin{position:absolute;z-index:7;top:8px;left:8px;width:24px;height:24px;display:grid;place-items:center;border-radius:50%;background:#c8102e;color:white;font:600 10px 'JetBrains Mono',monospace}
+    bridge = """<style id="lh-bridge-style">
+[data-lh-block-key]{scroll-margin-top:24px}.diagram{position:relative}.lh-review-mark{background:#fff4a8;color:inherit;border-bottom:1px solid #c8102e;padding:0}.lh-review-mark.is-active{border-bottom-width:2px}.diagram.lh-review-diagram{outline:2px solid #c8102e;outline-offset:3px}.lh-diagram-review-button{position:absolute;z-index:8;top:8px;right:8px;min-width:44px;min-height:44px;border:1px solid #1a1a1a;background:#fdfdfb;color:#c8102e;font:600 10px 'JetBrains Mono',monospace;cursor:pointer}.lh-review-pin{position:absolute;z-index:7;top:8px;left:8px;width:24px;height:24px;display:grid;place-items:center;border-radius:50%;background:#c8102e;color:white;font:600 10px 'JetBrains Mono',monospace}
 </style>
-<script>
+<script nonce="__LH_REVIEW_NONCE__">
 (function(){
 'use strict';
 var SOURCE='learning-hub-review';
 var page=document.querySelector('.page')||document.body;
-var currentView=document.documentElement.dataset.lhReviewView||'original';
+var currentView=__LH_REVIEW_VIEW__;
 function post(type,payload){parent.postMessage(Object.assign({source:SOURCE,type:type},payload||{}),'*');}
 function sectionName(node){var section=node.closest&&node.closest('section[id]');return section?section.id:'document';}
 function typeName(node){if(node.classList.contains('diagram'))return'diagram';if(node.classList.contains('formula'))return'formula';if(node.classList.contains('key'))return'key';return node.tagName.toLowerCase();}
@@ -540,6 +706,7 @@ function selectionPayload(){
  var range=selection.getRangeAt(0),start=closestBlock(range.startContainer),end=closestBlock(range.endContainer);
  if(!start||!page.contains(start)||!end||!page.contains(end))return{collapsed:true};
  var exact=selection.toString();if(!exact.trim())return{collapsed:true};
+ if(start!==end){var multiRect=range.getBoundingClientRect();return{collapsed:false,text:exact,quote:exact,unsupported:true,rect:{left:multiRect.left,right:multiRect.right,top:multiRect.top,bottom:multiRect.bottom},anchor:{kind:'text',quote:exact,sectionId:sectionName(start),selector:{blockKey:start.dataset.lhBlockKey,endBlockKey:end.dataset.lhBlockKey,multiBlock:true,exact:exact},versionId:currentView}};}
  var startOffset=textOffset(start,range.startContainer,range.startOffset),endOffset=start===end?textOffset(start,range.endContainer,range.endOffset):startOffset+exact.length;
  var all=start.textContent||'',rect=range.getBoundingClientRect();
  return{collapsed:false,text:exact,quote:exact,rect:{left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom},anchor:{kind:'text',quote:exact,sectionId:sectionName(start),selector:{blockKey:start.dataset.lhBlockKey,start:startOffset,end:endOffset,exact:exact,prefix:all.slice(Math.max(0,startOffset-32),startOffset),suffix:all.slice(endOffset,endOffset+32)},versionId:currentView}};
@@ -550,9 +717,10 @@ function addDiagramButtons(){page.querySelectorAll('.diagram').forEach(function(
 function clearHighlights(){document.querySelectorAll('mark.lh-review-mark').forEach(function(mark){mark.replaceWith.apply(mark,Array.from(mark.childNodes));});document.querySelectorAll('.lh-review-diagram').forEach(function(node){node.classList.remove('lh-review-diagram');node.querySelectorAll(':scope > .lh-review-pin').forEach(function(pin){pin.remove();});});}
 function targetBlock(anchor){var selector=anchor&&anchor.selector||{},key=selector.blockKey||anchor.diagramId;if(key){try{return page.querySelector('[data-lh-block-key="'+CSS.escape(key)+'"]');}catch(_error){return null;}}if(anchor&&anchor.sectionId)return document.getElementById(anchor.sectionId);return null;}
 function textNodes(block){var walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT,{acceptNode:function(node){return node.parentElement.closest('[data-lh-review-ui],script,style')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}}),nodes=[],node;while((node=walker.nextNode()))nodes.push(node);return nodes;}
-function markText(block,exact,id){if(!block||!exact)return null;var nodes=textNodes(block),joined=nodes.map(function(node){return node.data;}).join(''),start=joined.indexOf(exact);if(start<0)return null;var end=start+exact.length,cursor=0,first=null,last=null,so=0,eo=0;nodes.forEach(function(node){var next=cursor+node.data.length;if(first===null&&start>=cursor&&start<=next){first=node;so=start-cursor;}if(last===null&&end>=cursor&&end<=next){last=node;eo=end-cursor;}cursor=next;});if(!first||!last)return null;var range=document.createRange();range.setStart(first,so);range.setEnd(last,eo);var mark=document.createElement('mark');mark.className='lh-review-mark';mark.dataset.commentId=id;mark.tabIndex=0;try{range.surroundContents(mark);}catch(_error){var fragment=range.extractContents();mark.append(fragment);range.insertNode(mark);}mark.addEventListener('click',function(){post('highlight',{commentId:id});});return mark;}
-function renderHighlights(comments){clearHighlights();(comments||[]).forEach(function(item,index){if(item.mapped===false)return;var anchor=item.anchor||{},block=targetBlock(anchor);if(anchor.kind==='diagram'){if(!block)return;block.classList.add('lh-review-diagram');var pin=document.createElement('button');pin.type='button';pin.className='lh-review-pin';pin.dataset.lhReviewUi='true';pin.textContent=String(index+1);pin.setAttribute('aria-label','Open comment '+String(index+1));pin.addEventListener('click',function(event){event.stopPropagation();post('highlight',{commentId:item.commentId});});block.append(pin);return;}var selector=anchor.selector||{},exact=selector.exact||anchor.quote||'';markText(block,exact,item.commentId);});}
-function target(data){if(data.fragment){var fragment=document.getElementById(String(data.fragment).replace(/^#/,''));if(fragment)fragment.scrollIntoView({block:'start'});return;}var anchor=data.anchor||data,block=targetBlock(anchor),mark=data.commentId&&document.querySelector('mark[data-comment-id="'+CSS.escape(String(data.commentId))+'"]');var node=mark||block;if(node){document.querySelectorAll('.lh-review-mark.is-active').forEach(function(item){item.classList.remove('is-active');});if(mark)mark.classList.add('is-active');node.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}}
+function anchorStart(joined,selector,exact){if(Number.isInteger(selector.start)&&Number.isInteger(selector.end)){return selector.end>=selector.start&&joined.slice(selector.start,selector.end)===exact?selector.start:-1;}var prefix=selector.prefix,suffix=selector.suffix;if(prefix!==undefined||suffix!==undefined){var position=-1;while((position=joined.indexOf(exact,position+1))>=0){var before=joined.slice(0,position),after=joined.slice(position+exact.length);if((prefix===undefined||before.endsWith(prefix))&&(suffix===undefined||after.startsWith(suffix)))return position;}return-1;}return joined.indexOf(exact);}
+function markText(block,anchor,id,targetIndex){var selector=anchor&&anchor.selector||{},exact=selector.exact||anchor.quote||'';if(!block||!exact)return null;var nodes=textNodes(block),joined=nodes.map(function(node){return node.data;}).join(''),start=anchorStart(joined,selector,exact);if(start<0)return null;var end=start+exact.length,cursor=0,first=null,last=null,so=0,eo=0;nodes.forEach(function(node){var next=cursor+node.data.length;if(first===null&&start>=cursor&&start<=next){first=node;so=start-cursor;}if(last===null&&end>=cursor&&end<=next){last=node;eo=end-cursor;}cursor=next;});if(!first||!last)return null;var range=document.createRange();range.setStart(first,so);range.setEnd(last,eo);var mark=document.createElement('mark');mark.className='lh-review-mark';mark.dataset.commentId=id;mark.dataset.targetIndex=String(targetIndex);mark.tabIndex=0;try{range.surroundContents(mark);}catch(_error){var fragment=range.extractContents();mark.append(fragment);range.insertNode(mark);}mark.addEventListener('click',function(){post('highlight',{commentId:id,targetIndex:targetIndex});});return mark;}
+function renderHighlights(comments){clearHighlights();(comments||[]).forEach(function(item,index){if(item.mapped===false)return;var anchor=item.anchor||{},block=targetBlock(anchor),number=Number(item.number)||index+1,targetIndex=Number.isInteger(Number(item.targetIndex))?Number(item.targetIndex):0;if(anchor.kind==='diagram'){if(!block)return;block.classList.add('lh-review-diagram');var pin=document.createElement('button');pin.type='button';pin.className='lh-review-pin';pin.dataset.lhReviewUi='true';pin.dataset.commentId=item.commentId;pin.dataset.targetIndex=String(targetIndex);pin.textContent=String(number);pin.setAttribute('aria-label','Open comment '+String(number));pin.addEventListener('click',function(event){event.stopPropagation();post('highlight',{commentId:item.commentId,targetIndex:targetIndex});});block.append(pin);return;}markText(block,anchor,item.commentId,targetIndex);});}
+function target(data){if(data.fragment){var fragment=document.getElementById(String(data.fragment).replace(/^#/,''));if(fragment)fragment.scrollIntoView({block:'start'});return;}var anchor=data.anchor||data,block=targetBlock(anchor),targetIndex=Number(data.targetIndex),markSelector=data.commentId?'mark[data-comment-id="'+CSS.escape(String(data.commentId))+'"]':'',mark=Number.isInteger(targetIndex)&&targetIndex>=0&&markSelector?document.querySelector(markSelector+'[data-target-index="'+String(targetIndex)+'"]'):markSelector&&document.querySelector(markSelector);var node=mark||block;if(node){document.querySelectorAll('.lh-review-mark.is-active').forEach(function(item){item.classList.remove('is-active');});if(mark)mark.classList.add('is-active');node.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}}
 indexBlocks();addDiagramButtons();
 document.addEventListener('selectionchange',function(){setTimeout(announceSelection,0);});
 page.addEventListener('click',function(event){var diagram=event.target.closest&&event.target.closest('.diagram');if(diagram&&!event.target.closest('a,button,input,textarea,select')&&getSelection().isCollapsed)post('diagram',{diagram:diagramAnchor(diagram),action:'activate'});var link=event.target.closest&&event.target.closest('a[href]');if(link){event.preventDefault();post('internal-link',{href:link.href});}});
@@ -561,26 +729,72 @@ if(typeof ResizeObserver==='function')new ResizeObserver(function(){post('height
 post('height',{height:document.documentElement.scrollHeight});post('ready',{view:currentView});
 }());
 </script>"""
+    return bridge.replace("__LH_REVIEW_NONCE__", nonce, 1).replace(
+        "__LH_REVIEW_VIEW__",
+        json.dumps(view),
+        1,
+    )
 
 
-def inject_document(content: str, *, view: str) -> bytes:
+def _trust_original_scripts(content: str, original: str, nonce: str) -> str:
+    """Authorize only script blocks already present in the trusted source snapshot."""
+    original_locator = _DocumentLocator(original)
+    trusted = Counter(original[start:end] for start, end in original_locator.scripts)
+    locator = _DocumentLocator(content)
+    edits: list[tuple[int, int, str]] = []
+    for start, end in locator.scripts:
+        block = content[start:end]
+        if trusted[block] < 1:
+            continue
+        trusted[block] -= 1
+        opening_end = content.find(">", start, end)
+        if opening_end < 0:
+            continue
+        opening_end += 1
+        opening = content[start:opening_end]
+        nonced = re.sub(
+            r"^<script\b",
+            f'<script nonce="{nonce}"',
+            opening,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+        edits.append((start, opening_end, nonced))
+    return _apply_document_edits(content, edits)
+
+
+def _apply_document_edits(content: str, edits: list[tuple[int, int, str]]) -> str:
+    for start, end, replacement in sorted(edits, key=lambda item: item[0], reverse=True):
+        content = content[:start] + replacement + content[end:]
+    return content
+
+
+def inject_document(content: str, *, original: str, view: str, nonce: str) -> bytes:
+    content = _trust_original_scripts(content, original, nonce)
+    locator = _DocumentLocator(content)
     base = '<base href="/topics/">\n'
-    marker = re.search(r"<head(?:\s[^>]*)?>", content, flags=re.IGNORECASE)
-    if marker:
-        content = content[: marker.end()] + "\n" + base + content[marker.end() :]
+    bridge = _bridge_script(view, nonce)
+    edits: list[tuple[int, int, str]] = []
+    if locator.head_end is not None:
+        edits.append((locator.head_end, locator.head_end, "\n" + base))
     else:
-        content = base + content
-    html_tag = re.search(r"<html(?:\s[^>]*)?>", content, flags=re.IGNORECASE)
-    if html_tag:
-        tag = html_tag.group(0)
+        edits.append((0, 0, base))
+    if locator.html_tag is not None:
+        start, end = locator.html_tag
+        tag = content[start:end]
+        tag = re.sub(
+            r"\sdata-lh-review-view(?:\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+))?",
+            "",
+            tag,
+            flags=re.IGNORECASE,
+        )
         replacement = tag[:-1] + f' data-lh-review-view="{view}">'
-        content = content[: html_tag.start()] + replacement + content[html_tag.end() :]
-    bridge = _bridge_script(view)
-    body_end = re.search(r"</body\s*>", content, flags=re.IGNORECASE)
-    if body_end:
-        content = content[: body_end.start()] + bridge + "\n" + content[body_end.start() :]
+        edits.append((start, end, replacement))
+    if locator.body_end is not None:
+        edits.append((locator.body_end, locator.body_end, bridge + "\n"))
     else:
-        content += bridge
+        edits.append((len(content), len(content), bridge))
+    content = _apply_document_edits(content, edits)
     return content.encode("utf-8")
 
 
@@ -663,7 +877,19 @@ class ReviewRequestHandler(BaseHTTPRequestHandler):
                 content = session.get(view)
                 if view == "candidate" and not content:
                     raise ApiError("candidate_unavailable", "Candidate is not available", status=404)
-                return self._bytes(200, inject_document(str(content), view=view), "text/html; charset=utf-8", api=True)
+                nonce = secrets.token_urlsafe(24)
+                return self._bytes(
+                    200,
+                    inject_document(
+                        str(content),
+                        original=str(session.get("original") or ""),
+                        view=view,
+                        nonce=nonce,
+                    ),
+                    "text/html; charset=utf-8",
+                    api=True,
+                    document_nonce=nonce,
+                )
             match = _COMMENTS_ROUTE.fullmatch(path)
             if method == "POST" and match:
                 return self._json(201, self.app.add_comment(match.group(1), self._revision(), self._json_body()))
@@ -707,7 +933,17 @@ class ReviewRequestHandler(BaseHTTPRequestHandler):
                 )
             data, file = self.app.repository.read_public_file(path)
             mime = mimetypes.guess_type(file.name)[0] or "application/octet-stream"
-            return self._bytes(200, data, mime + ("; charset=utf-8" if mime.startswith("text/") or mime in {"application/javascript", "application/json"} else ""))
+            return self._bytes(
+                200,
+                data,
+                mime
+                + (
+                    "; charset=utf-8"
+                    if mime.startswith("text/") or mime in {"application/javascript", "application/json"}
+                    else ""
+                ),
+                cors=True,
+            )
         except (ApiError, RepositoryError, StoreError, AgentError) as exc:
             details = getattr(exc, "details", None)
             payload: dict[str, Any] = {"error": getattr(exc, "code", "request_failed"), "message": getattr(exc, "message", str(exc))}
@@ -790,12 +1026,29 @@ class ReviewRequestHandler(BaseHTTPRequestHandler):
         data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         self._bytes(status, data, "application/json; charset=utf-8", api=True)
 
-    def _bytes(self, status: int, data: bytes, content_type: str, *, api: bool = False) -> None:
+    def _bytes(
+        self,
+        status: int,
+        data: bytes,
+        content_type: str,
+        *,
+        api: bool = False,
+        cors: bool = False,
+        document_nonce: str | None = None,
+    ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
+        if cors:
+            self.send_header("Access-Control-Allow-Origin", "*")
+        if document_nonce:
+            self.send_header(
+                "Content-Security-Policy",
+                document_csp(self.server.server_port, document_nonce),
+            )
+            self.send_header("X-DNS-Prefetch-Control", "off")
         if api:
             self.send_header("Cache-Control", "no-store")
         else:
@@ -811,10 +1064,20 @@ class ReviewHTTPServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], app: ReviewApplication, *, quiet: bool = False):
         self.app = app
         self.quiet = quiet
-        super().__init__(address, ReviewRequestHandler)
+        try:
+            super().__init__(address, ReviewRequestHandler)
+        except Exception:
+            app.repository.release_server_lock()
+            raise
 
     def handle_error(self, request: Any, client_address: Any) -> None:
         error = sys.exc_info()[1]
         if isinstance(error, (BrokenPipeError, ConnectionResetError)):
             return
         super().handle_error(request, client_address)
+
+    def server_close(self) -> None:
+        try:
+            super().server_close()
+        finally:
+            self.app.repository.release_server_lock()

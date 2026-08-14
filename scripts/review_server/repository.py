@@ -7,6 +7,7 @@ writes the live repository. Paths supplied by browsers are treated as hostile.
 from __future__ import annotations
 
 import hashlib
+import fcntl
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -77,6 +78,7 @@ class Repository:
             _run(["git", "rev-parse", "--path-format=absolute", "--git-dir"], cwd=self.root).stdout.strip()
         ).resolve()
         self._finalize_lock = threading.RLock()
+        self._server_lock_file: Any = None
 
     @classmethod
     def discover(cls, start: str | os.PathLike[str] | None = None) -> "Repository":
@@ -91,6 +93,71 @@ class Repository:
     def branch(self) -> str | None:
         value = self.git_text("symbolic-ref", "--quiet", "--short", "HEAD", check=False)
         return value or None
+
+    def remote_contains(self, commit: str, branch: str | None) -> bool:
+        """Return whether the local origin-tracking ref contains a filed commit."""
+        if not re.fullmatch(r"[0-9a-f]{40}", str(commit)):
+            return False
+        if not branch or not _BRANCH_RE.fullmatch(branch):
+            return False
+        remote_ref = f"refs/remotes/origin/{branch}"
+        result = _run(
+            ["git", "merge-base", "--is-ancestor", commit, remote_ref],
+            cwd=self.root,
+            check=False,
+        )
+        return result.returncode == 0
+
+    def head_contains(self, commit: str) -> bool:
+        if not re.fullmatch(r"[0-9a-f]{40}", str(commit)):
+            return False
+        result = _run(
+            ["git", "merge-base", "--is-ancestor", commit, "HEAD"],
+            cwd=self.root,
+            check=False,
+        )
+        return result.returncode == 0
+
+    def acquire_server_lock(self) -> None:
+        """Hold the repository-wide review server lock until this process exits."""
+        if self._server_lock_file is not None:
+            return
+        lock_dir = self.git_dir / "learning-hub-review" / "v1"
+        try:
+            lock_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            handle = (lock_dir / "server.lock").open("a+", encoding="utf-8")
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                handle.close()
+                raise RepositoryError(
+                    "review_server_running",
+                    "Another Learning Hub review server is already running for this repository",
+                    status=409,
+                ) from exc
+            handle.seek(0)
+            handle.truncate()
+            handle.write(f"pid={os.getpid()}\n")
+            handle.flush()
+        except RepositoryError:
+            raise
+        except OSError as exc:
+            raise RepositoryError(
+                "review_server_lock_failed",
+                "Could not acquire the Learning Hub review server lock",
+                status=500,
+            ) from exc
+        self._server_lock_file = handle
+
+    def release_server_lock(self) -> None:
+        handle = self._server_lock_file
+        if handle is None:
+            return
+        self._server_lock_file = None
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            handle.close()
 
     @staticmethod
     def hash_bytes(content: bytes) -> str:
@@ -289,9 +356,26 @@ class Repository:
                 # be pushed manually, rather than publishing a commit that the
                 # checked-out repository never adopted.
                 _run(["git", "merge", "--ff-only", commit], cwd=self.root)
+                pushed = False
+                push_error = None
                 if remote_url:
-                    _run(["git", "push", "origin", f"{commit}:refs/heads/{branch}"], cwd=self.root, timeout=180)
-                return {"commit": commit, "pushed": bool(remote_url), "path": path}
+                    try:
+                        _run(
+                            ["git", "push", "origin", f"{commit}:refs/heads/{branch}"],
+                            cwd=self.root,
+                            timeout=180,
+                        )
+                        pushed = True
+                    except RepositoryError as exc:
+                        # The local fast-forward is the durable filing boundary.
+                        # A failed push is reported without rolling back or
+                        # leaving the review session live and retryable against
+                        # a base commit that no longer exists in the checkout.
+                        push_error = exc.message
+                result = {"commit": commit, "pushed": pushed, "path": path}
+                if push_error:
+                    result["pushError"] = push_error
+                return result
 
     @staticmethod
     def _git_status_lines(repo: Path) -> list[str]:

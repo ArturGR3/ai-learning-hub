@@ -127,9 +127,11 @@
     expandedChanges: new Set(),
     viewContext: { original: null, candidate: null },
     lastContext: null,
-    complete: false
+    complete: false,
+    pushWarning: ''
   };
   var pollTimer = null;
+  var railReturnFocus = null;
 
   function h(tag, className, text) {
     var node = document.createElement(tag);
@@ -161,8 +163,16 @@
 
   function mapped(comment) {
     var anchor = anchorFor(comment);
-    if (comment.mapped === false || anchor.mapped === false || anchor.unmapped === true) return false;
+    if (state.view === 'candidate' && comment.mapped === false) return false;
+    if (anchor.mapped === false || anchor.unmapped === true) return false;
     return Boolean(anchor.selector || anchor.id || anchor.diagramId || anchor.sectionId || anchor.range || anchor.quote);
+  }
+
+  function targetsFor(comment) {
+    if (state.view === 'candidate' && Array.isArray(comment.candidateTargets) && comment.candidateTargets.length) {
+      return comment.candidateTargets;
+    }
+    return [anchorFor(comment)];
   }
 
   function quoteFor(anchor) {
@@ -219,7 +229,10 @@
     if (next.revision !== undefined) api.setRevision(next.revision);
     if (next.activeJob) state.job = normalizeJob(next.activeJob);
     else if (!(options && options.keepJob)) state.job = null;
-    if (next.complete || next.status === 'complete' || next.status === 'finalized') state.complete = true;
+    if (next.complete || next.status === 'complete' || next.status === 'finalized') {
+      state.complete = true;
+      state.pushWarning = next.finalized && next.finalized.pushError ? String(next.finalized.pushError) : '';
+    }
     if (next.candidateAvailable && (!options || options.preferCandidate !== false)) state.view = 'candidate';
     requestHighlights();
   }
@@ -249,13 +262,18 @@
 
   function requestHighlights() {
     if (!state.frameReady || !state.session) return;
-    var comments = sessionComments().map(function (comment) {
-      return {
-        commentId: commentId(comment),
-        anchor: anchorFor(comment),
-        mapped: mapped(comment),
-        tone: comment.decision === 'no' || comment.decision === 'maybe' ? 'red' : 'yellow'
-      };
+    var comments = [];
+    sessionComments().forEach(function (comment, index) {
+      targetsFor(comment).forEach(function (anchor, targetIndex) {
+        comments.push({
+          commentId: commentId(comment),
+          targetIndex: targetIndex,
+          anchor: anchor,
+          mapped: mapped(comment),
+          number: index + 1,
+          tone: comment.decision === 'no' || comment.decision === 'maybe' ? 'red' : 'yellow'
+        });
+      });
     });
     postToFrame('highlights', { comments: comments });
   }
@@ -296,6 +314,7 @@
 
   var scrim = h('button', 'lh-review-scrim');
   scrim.type = 'button';
+  scrim.tabIndex = -1;
   scrim.dataset.action = 'close-rail';
   scrim.setAttribute('aria-label', 'Close review panel');
   var rail = h('aside', 'lh-review-rail');
@@ -336,16 +355,78 @@
     state.retry = null;
   }
 
-  function openRail() {
+  function railIsModal() {
+    return window.innerWidth < 1080;
+  }
+
+  function syncRailAccessibility() {
+    var modal = railIsModal();
+    var open = !modal || state.railOpen;
+    rail.inert = !open;
+    if (open) rail.removeAttribute('aria-hidden');
+    else rail.setAttribute('aria-hidden', 'true');
+    if (modal && state.railOpen) {
+      rail.setAttribute('role', 'dialog');
+      rail.setAttribute('aria-modal', 'true');
+    } else {
+      rail.removeAttribute('role');
+      rail.removeAttribute('aria-modal');
+    }
+    documentPane.inert = modal && state.railOpen;
+    if (modal && state.railOpen) documentPane.setAttribute('aria-hidden', 'true');
+    else documentPane.removeAttribute('aria-hidden');
+  }
+
+  function focusableRailNodes() {
+    return Array.from(rail.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[tabindex]:not([tabindex="-1"])'))
+      .filter(function (node) { return !node.hidden && node.getClientRects().length; });
+  }
+
+  function focusToken(node) {
+    if (!node || node === document.body) return null;
+    return {
+      id: node.id || '',
+      action: node.dataset && node.dataset.action || '',
+      testid: node.dataset && node.dataset.testid || '',
+      commentId: node.dataset && node.dataset.commentId || '',
+      value: node.matches && node.matches('input[type="radio"]') ? node.value : ''
+    };
+  }
+
+  function focusFromToken(token) {
+    if (!token) return null;
+    var selector = token.id ? '#' + CSS.escape(token.id) : '';
+    if (!selector && token.action) selector = '[data-action="' + CSS.escape(token.action) + '"]';
+    if (!selector && token.testid) selector = '[data-testid="' + CSS.escape(token.testid) + '"]';
+    if (!selector) return null;
+    if (token.commentId) selector += '[data-comment-id="' + CSS.escape(token.commentId) + '"]';
+    if (token.value) selector += '[value="' + CSS.escape(token.value) + '"]';
+    try { return rail.querySelector(selector); }
+    catch (_error) { return null; }
+  }
+
+  function openRail(focusRail) {
+    if (!state.railOpen && railIsModal()) railReturnFocus = document.activeElement;
     state.railOpen = true;
     root.classList.add('is-rail-open');
     railToggle.setAttribute('aria-expanded', 'true');
+    syncRailAccessibility();
+    if (focusRail && railIsModal()) {
+      window.requestAnimationFrame(function () {
+        var target = rail.querySelector('[data-action="close-rail"]') || focusableRailNodes()[0];
+        if (target) target.focus();
+      });
+    }
   }
 
   function closeRail() {
+    var restore = railIsModal() ? railReturnFocus : null;
     state.railOpen = false;
     root.classList.remove('is-rail-open');
     railToggle.setAttribute('aria-expanded', 'false');
+    syncRailAccessibility();
+    if (restore && typeof restore.focus === 'function') restore.focus();
+    railReturnFocus = null;
   }
 
   function openComposer(anchor, existing) {
@@ -490,12 +571,14 @@
     if (!state.session || !state.session.candidateAvailable || !summary || !summary.blockCount) return;
     var id = commentId(comment);
     var section = String(summary.sectionId || 'document').replace(/^s/i, '');
-    var label = summary.blockCount + ' block' + (summary.blockCount === 1 ? '' : 's') + ' changed';
-    if (section && section !== 'document') label += ' in section ' + section;
+    var label = summary.blockCount + ' changed block' + (summary.blockCount === 1 ? '' : 's');
+    if (summary.scope === 'section' && section && section !== 'document') label = 'Section ' + section + ': ' + label;
+    else if (section && section !== 'document') label += ' near this comment';
     var wrapper = h('div', 'lh-change-summary');
     var row = h('div', 'lh-change-summary-row');
     row.append(h('span', 'lh-change-count', label));
-    var toggle = button(state.expandedChanges.has(id) ? 'Hide changes' : 'Show changes', 'toggle-changes', 'lh-text-button lh-change-toggle');
+    var hiddenLabel = summary.scope === 'section' ? 'Show section changes' : 'Show changes';
+    var toggle = button(state.expandedChanges.has(id) ? 'Hide changes' : hiddenLabel, 'toggle-changes', 'lh-text-button lh-change-toggle');
     toggle.dataset.commentId = id;
     toggle.setAttribute('aria-expanded', String(state.expandedChanges.has(id)));
     row.append(toggle);
@@ -635,6 +718,14 @@
   }
 
   function render() {
+    var previousFocus = rail.contains(document.activeElement) ? focusToken(document.activeElement) : null;
+    function restoreRenderedFocus() {
+      var target = focusFromToken(previousFocus);
+      if (!target && state.railOpen && railIsModal() && !rail.contains(document.activeElement)) {
+        target = focusableRailNodes()[0] || null;
+      }
+      if (target) target.focus();
+    }
     originalButton.classList.toggle('is-active', state.view === 'original');
     candidateButton.classList.toggle('is-active', state.view === 'candidate');
     originalButton.setAttribute('aria-pressed', String(state.view === 'original'));
@@ -661,12 +752,18 @@
     if (state.complete) {
       var complete = h('section', 'lh-complete');
       complete.dataset.testid = 'review-complete';
-      complete.append(h('span', 'lh-complete-mark', '✓'), h('h3', '', 'Review complete'), h('p', '', 'The approved blueprint is saved. Reloading the review...'));
+      var completeTitle = state.pushWarning ? 'Saved locally' : 'Review complete';
+      var completeText = state.pushWarning
+        ? 'The blueprint and commit are safe on this computer, but Git could not push them. Run git push when the remote is reachable. ' + state.pushWarning
+        : 'The approved blueprint is saved. Reloading the review...';
+      complete.append(h('span', 'lh-complete-mark', '✓'), h('h3', '', completeTitle), h('p', '', completeText));
       railContent.append(complete);
+      restoreRenderedFocus();
       return;
     }
     if (state.loading) {
       railContent.append(h('p', 'lh-loading', 'Opening the review session...'));
+      restoreRenderedFocus();
       return;
     }
     renderComposer(railContent);
@@ -682,6 +779,7 @@
     renderJob(railContent);
     renderActions(railContent);
     renderFinalize(railContent);
+    restoreRenderedFocus();
   }
 
   function updateComposerState() {
@@ -780,7 +878,13 @@
         schedulePoll(900);
         return;
       }
-      if (['failed', 'cancelled', 'canceled'].includes(String(result.status || '').toLowerCase())) {
+      if (['cancelled', 'canceled'].includes(String(result.status || '').toLowerCase())) {
+        state.job = null;
+        setStatus('AI revision cancelled. Your comments are still here.');
+        await refreshSession({ preferCandidate: false });
+        return;
+      }
+      if (String(result.status || '').toLowerCase() === 'failed') {
         state.error = result.error || result.message || 'The AI revision did not finish.';
         state.retry = function () { startRevision(Boolean(state.session && state.session.candidateAvailable)); };
         render();
@@ -806,12 +910,13 @@
     state.busy = true;
     render();
     try {
-      await api.cancelJob(state.job.id);
+      var response = await api.cancelJob(state.job.id);
       window.clearTimeout(pollTimer);
-      state.job = null;
+      state.job = normalizeJob(response && (response.job || response.jobId || response)) || state.job;
       state.busy = false;
-      setStatus('AI revision cancelled. Your comments are still here.');
-      await refreshSession({ preferCandidate: false });
+      setStatus('Cancelling the AI revision...');
+      render();
+      schedulePoll(0);
     } catch (error) {
       showError(error, cancelJob);
     }
@@ -852,9 +957,11 @@
       await applyMutationResponse(response, { preferCandidate: true });
       state.busy = false;
       state.complete = true;
-      setStatus('Review complete. The approved blueprint is saved.');
+      var finalizeResult = response && (response.finalizeResult || (response.session && response.session.finalizeResult));
+      state.pushWarning = finalizeResult && finalizeResult.pushError ? String(finalizeResult.pushError) : '';
+      setStatus(state.pushWarning ? 'Saved locally. Git push needs attention.' : 'Review complete. The approved blueprint is saved.');
       render();
-      window.setTimeout(function () { window.location.reload(); }, 900);
+      if (!state.pushWarning) window.setTimeout(function () { window.location.reload(); }, 900);
     } catch (error) {
       showError(error, finalizeReview);
     }
@@ -881,9 +988,11 @@
     return sessionComments().find(function (comment) { return commentId(comment) === String(id); });
   }
 
-  function targetComment(id) {
+  function targetComment(id, targetIndex) {
     var comment = findComment(id);
     if (!comment) return;
+    var index = Number(targetIndex);
+    var preciseTarget = Number.isInteger(index) && index >= 0 ? targetsFor(comment)[index] : null;
     state.activeComment = String(id);
     openRail();
     render();
@@ -892,7 +1001,11 @@
       card.focus({ preventScroll: true });
       card.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     }
-    if (mapped(comment)) postToFrame('target', { commentId: String(id), anchor: anchorFor(comment) });
+    if (mapped(comment)) postToFrame('target', {
+      commentId: String(id),
+      targetIndex: preciseTarget ? index : 0,
+      anchor: preciseTarget || anchorFor(comment)
+    });
     else setStatus('This comment is unmapped. No document location was guessed.');
   }
 
@@ -942,6 +1055,11 @@
         selectionButton.hidden = true;
         return;
       }
+      if (selection.unsupported || (selection.anchor && selection.anchor.selector && selection.anchor.selector.multiBlock)) {
+        selectionButton.hidden = true;
+        setStatus('Select text within one paragraph, list item, formula, or diagram.');
+        return;
+      }
       selectionButton._reviewAnchor = normalizeAnchor(selection, 'text');
       selectionButton.hidden = false;
       positionProxy(selectionButton, selection.rect || data.rect);
@@ -959,7 +1077,9 @@
     }
     if (type === 'comment' || type === 'highlight') {
       var id = data.commentId || (data.payload && data.payload.commentId);
-      if (id) targetComment(id);
+      var targetIndex = data.targetIndex;
+      if (targetIndex === undefined && data.payload) targetIndex = data.payload.targetIndex;
+      if (id) targetComment(id, targetIndex);
       return;
     }
     if (type === 'internal-link') {
@@ -994,12 +1114,34 @@
     }
   });
 
-  root.addEventListener('keydown', function (event) {
+  document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape' && state.composer) {
       event.preventDefault();
       state.composer = null;
       render();
       return;
+    }
+    if (event.key === 'Escape' && state.railOpen && railIsModal()) {
+      event.preventDefault();
+      closeRail();
+      return;
+    }
+    if (event.key === 'Tab' && state.railOpen && railIsModal()) {
+      var focusable = focusableRailNodes();
+      if (focusable.length) {
+        var first = focusable[0];
+        var last = focusable[focusable.length - 1];
+        if (!rail.contains(document.activeElement)) {
+          event.preventDefault();
+          (event.shiftKey ? last : first).focus();
+        } else if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     }
     if (event.target.matches('[data-testid="comment-editor"]') && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
@@ -1037,7 +1179,7 @@
       return;
     }
     var action = actionNode.dataset.action;
-    if (action === 'toggle-rail') state.railOpen ? closeRail() : openRail();
+    if (action === 'toggle-rail') state.railOpen ? closeRail() : openRail(true);
     else if (action === 'close-rail') closeRail();
     else if (action === 'view-original') switchView('original');
     else if (action === 'view-candidate') switchView('candidate');
@@ -1065,10 +1207,12 @@
   window.addEventListener('message', receiveBridge);
   window.addEventListener('resize', function () {
     if (!selectionButton.hidden && selectionButton._reviewAnchor && selectionButton._reviewAnchor.rect) positionProxy(selectionButton, selectionButton._reviewAnchor.rect);
-    if (window.innerWidth >= 1080) closeRail();
+    if (window.innerWidth >= 1080 && state.railOpen) closeRail();
+    else syncRailAccessibility();
   });
 
   async function initialize() {
+    syncRailAccessibility();
     render();
     try {
       var bootstrap = await api.bootstrap(shellBootstrap.path, shellBootstrap.bootstrapUrl);
