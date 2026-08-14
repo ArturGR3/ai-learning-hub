@@ -1,0 +1,38 @@
+{
+  "stages": [
+    {
+      "operation": "revise",
+      "summary": "Clarify the random-variable explanation and diagram caption.",
+      "replacements": [
+        {
+          "old": "so the thing you are holding is not really a number at",
+          "new": "so the estimate you are holding is one possible number, not a fixed truth at"
+        },
+        {
+          "old": "Fig. 2 - each bar is the range your answer plausibly lands in.",
+          "new": "Fig. 2 - narrower bars show where your answer plausibly lands."
+        }
+      ]
+    },
+    {
+      "operation": "reconcile",
+      "summary": "Make the precision diagram caption more explicit.",
+      "replacements": [
+        {
+          "old": "Fig. 2 - narrower bars show where your answer plausibly lands.",
+          "new": "Fig. 2 - narrower bars make the square-root precision trade-off visible."
+        }
+      ]
+    },
+    {
+      "operation": "reconcile",
+      "summary": "Resolve the rejected diagram treatment without reopening accepted text.",
+      "replacements": [
+        {
+          "old": "Fig. 2 - narrower bars make the square-root precision trade-off visible.",
+          "new": "Fig. 2 - four times the sample halves the plausible error range."
+        }
+      ]
+    }
+  ]
+}

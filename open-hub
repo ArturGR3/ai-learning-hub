@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+HUB_ROOT="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+
+exec python3 "$HUB_ROOT/scripts/review-blueprint.py" --repo "$HUB_ROOT" "$@"
